@@ -1,0 +1,51 @@
+# Local dev & single-host (e.g. Proxmox LXC/VM) deployment.
+#   docker compose up --build                       # SQLite (default)
+#   docker compose --profile postgres up --build    # + PostgreSQL; set JACKLYN_DATABASE_URL in .env
+name: jacklyn
+
+services:
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      JACKLYN_DATABASE_URL: ${JACKLYN_DATABASE_URL:-sqlite:////data/jacklyn.db}
+      JACKLYN_CORS_ORIGINS: '["http://localhost:8080"]'
+    depends_on:
+      db:
+        condition: service_healthy
+        required: false  # only when the postgres profile is enabled
+    volumes:
+      - jacklyn-data:/data
+    ports:
+      - "${JACKLYN_API_PORT:-8000}:8000"
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${JACKLYN_WEB_PORT:-8080}:80"
+
+  db:
+    image: postgres:16-alpine
+    profiles: ["postgres"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: jacklyn
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-jacklyn}
+      POSTGRES_DB: jacklyn
+    volumes:
+      - jacklyn-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jacklyn"]
+      interval: 5s
+      retries: 10
+
+volumes:
+  jacklyn-data:
+  jacklyn-pg:

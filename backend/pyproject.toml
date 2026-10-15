@@ -1,0 +1,31 @@
+[project]
+name = "jacklyn-backend"
+version = "0.1.0"
+description = "Jacklyn portfolio tracker API"
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF"]
+ignore = [
+    "B008",    # FastAPI's Depends()/File() defaults are idiomatic
+    "RUF001",  # unicode minus / en dash / × are deliberate (broker data, UI labels)
+]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+exclude = ["\\.venv"]
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["error::sqlalchemy.exc.SAWarning"]

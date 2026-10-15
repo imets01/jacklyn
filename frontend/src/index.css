@@ -1,0 +1,133 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Alocasia palette — deep leaf greens, silvery vein accents, warm off-white.
+ * Every color is a CSS variable so light/dark are swapped in one place.
+ */
+:root {
+  color-scheme: light;
+  --bg: #f6f7f2;
+  --surface: #ffffff;
+  --surface-2: #eff3ec;
+  --surface-3: #e5ece1;
+  --border: #e1e8dd;
+  --text: #13231a;
+  --text-muted: #5b6b61;
+  --text-subtle: #84948a;
+  --brand: #2f6b4f;
+  --brand-strong: #1f4d38;
+  --brand-soft: #ddede2;
+  --brand-contrast: #ffffff;
+  --vein: #9fcfb0;
+  --positive: #1f7a4c;
+  --positive-soft: #dcefe3;
+  --negative: #b4492f;
+  --negative-soft: #f7e3dc;
+  --warning: #9a6a00;
+  --warning-soft: #f6ecd2;
+
+  /* Chart: categorical slots (validated: CVD-adjacent ΔE ≥ 13, normal ≥ 19) */
+  --series-1: #16865a;
+  --series-2: #2a78d6;
+  --series-3: #e0662e;
+  --series-4: #7a52c7;
+  --series-5: #c98500;
+  --series-6: #d55181;
+  --chart-grid: #e8ede5;
+  --chart-axis: #84948a;
+  --chart-line: #2f6b4f;
+  --chart-area: #2f6b4f;
+  --chart-ref: #84948a;
+}
+
+.dark {
+  color-scheme: dark;
+  --bg: #0c1410;
+  --surface: #131e18;
+  --surface-2: #19271f;
+  --surface-3: #213228;
+  --border: #23352b;
+  --text: #e5efe8;
+  --text-muted: #9bb0a2;
+  --text-subtle: #6f8577;
+  --brand: #6fbf92;
+  --brand-strong: #9ad8b3;
+  --brand-soft: #1c3428;
+  --brand-contrast: #0c1410;
+  --vein: #3f6d54;
+  --positive: #5fcf8f;
+  --positive-soft: #183326;
+  --negative: #f08a6e;
+  --negative-soft: #3a211b;
+  --warning: #e2b44b;
+  --warning-soft: #33290f;
+
+  --series-1: #2fa877;
+  --series-2: #3987e5;
+  --series-3: #e0703a;
+  --series-4: #9085e9;
+  --series-5: #c98500;
+  --series-6: #d55181;
+  --chart-grid: #1f2e25;
+  --chart-axis: #6f8577;
+  --chart-line: #6fbf92;
+  --chart-area: #6fbf92;
+  --chart-ref: #6f8577;
+}
+
+@theme inline {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--border);
+  --color-ink: var(--text);
+  --color-muted: var(--text-muted);
+  --color-subtle: var(--text-subtle);
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-contrast: var(--brand-contrast);
+  --color-vein: var(--vein);
+  --color-positive: var(--positive);
+  --color-positive-soft: var(--positive-soft);
+  --color-negative: var(--negative);
+  --color-negative-soft: var(--negative-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+
+  --radius-card: 1.5rem;
+  --shadow-card: 0 1px 2px rgb(19 35 26 / 0.04), 0 8px 24px -12px rgb(19 35 26 / 0.12);
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+  body {
+    @apply bg-bg text-ink font-sans antialiased;
+    font-feature-settings: "cv11", "ss01";
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  :focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
