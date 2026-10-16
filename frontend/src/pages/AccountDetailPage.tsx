@@ -6,6 +6,7 @@ import { Link, useParams } from 'react-router'
 import { useAccount, useHoldings, useTransactions } from '../api/hooks'
 import type { TransactionRow } from '../api/types'
 import { AccountTypeBadge, BrokerAvatar, TbszProgress } from '../components/accounts/AccountRow'
+import { DeleteAccountCard } from '../components/accounts/DeleteAccountCard'
 import { NetWorthCard } from '../components/dashboard/NetWorthCard'
 import { PageHeader } from '../components/layout/PageHeader'
 import { Delta } from '../components/ui/Delta'
@@ -266,6 +267,7 @@ export function AccountDetailPage() {
             <TransactionsTable accountId={id} />
           </div>
         </Card>
+        <DeleteAccountCard account={data} />
       </div>
     </>
   )

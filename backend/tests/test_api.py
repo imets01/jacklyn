@@ -133,3 +133,29 @@ def test_unsupported_and_invalid_uploads(client: TestClient) -> None:
     assert empty.status_code == 400
     bad_commit = client.post("/api/import/commit", json={"account_id": 1, "transactions": [{"date": "2025-01-01"}]})
     assert bad_commit.status_code == 422
+
+
+def test_delete_account_removes_its_data_only(client: TestClient) -> None:
+    keep = _create_account(client, name="Keep me", currency="EUR")
+    doomed = _create_account(client, name="Delete me", currency="EUR")
+    for account in (keep, doomed):
+        response = client.post(
+            "/api/import/commit",
+            json={
+                "account_id": account["id"],
+                "transactions": [{"date": "2025-01-02", "type": "deposit", "amount": "100", "currency": "EUR"}],
+                "filename": "x.csv",
+            },
+        )
+        assert response.json()["imported"] == 1
+
+    assert client.delete(f"/api/accounts/{doomed['id']}", params={"confirm": "delete me"}).status_code == 400
+    assert client.delete(f"/api/accounts/{doomed['id']}").status_code == 422
+    assert client.delete(f"/api/accounts/{doomed['id']}", params={"confirm": "Delete me"}).status_code == 204
+
+    assert client.get(f"/api/accounts/{doomed['id']}").status_code == 404
+    assert client.get(f"/api/accounts/{doomed['id']}/transactions").status_code == 404
+    assert all(log["account_id"] != doomed["id"] for log in client.get("/api/import/logs").json())
+    assert client.get(f"/api/accounts/{keep['id']}").json()["transaction_count"] == 1
+    # The name is free again.
+    assert client.post("/api/accounts", json={"name": "Delete me", "broker": "X", "currency": "EUR"}).status_code == 201

@@ -1,12 +1,12 @@
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, status
-from sqlalchemy import func, select
+from fastapi import APIRouter, HTTPException, Query, Response, status
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 
 from app.api.deps import BaseCurrency, CurrentUser, DbSession, get_owned_account
 from app.enums import AccountType
-from app.models import Account, Asset, Transaction
+from app.models import Account, Asset, BrokerCredential, ImportLog, Transaction
 from app.schemas.api import AccountCreate, AccountUpdate, TransactionOut, TransactionPage
 from app.schemas.portfolio import AccountSummary
 from app.services.portfolio import PortfolioEngine
@@ -66,6 +66,28 @@ def update_account(
         session.rollback()
         raise HTTPException(status.HTTP_409_CONFLICT, "An account with that name already exists.") from exc
     return _summaries(session, user.id, base, [account.id], include_archived=True)[0]
+
+
+@router.delete("/{account_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_account(
+    account_id: int,
+    session: DbSession,
+    user: CurrentUser,
+    confirm: Annotated[str, Query(description="The account's exact name, as a guard against accidents")],
+) -> Response:
+    """Permanently delete an account with all its transactions, import history and sync credentials."""
+    account = get_owned_account(session, user, account_id)
+    if confirm.strip() != account.name:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Type the account's name exactly to confirm.")
+    scope = (Transaction.account_id == account.id, Transaction.user_id == user.id)
+    session.execute(delete(Transaction).where(*scope))
+    session.execute(delete(ImportLog).where(ImportLog.account_id == account.id, ImportLog.user_id == user.id))
+    session.execute(
+        delete(BrokerCredential).where(BrokerCredential.account_id == account.id, BrokerCredential.user_id == user.id)
+    )
+    session.delete(account)
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/{account_id}/transactions", response_model=TransactionPage)

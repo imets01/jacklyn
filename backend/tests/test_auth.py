@@ -393,3 +393,14 @@ def test_unreadable_two_factor_secret_fails_closed(make_user: MakeUser) -> None:
     next_code = pyotp.TOTP(secret).at((step + 1) * 30)
     assert _login(new_client(), email, "fail closed friend password").status_code == 401
     assert _login(new_client(), email, "fail closed friend password", next_code).status_code == 401
+
+
+def test_users_cannot_delete_each_others_accounts(client: TestClient, make_user: MakeUser) -> None:
+    target = client.get("/api/accounts").json()[0]
+    friend = make_user()
+    assert friend.delete(f"/api/accounts/{target['id']}", params={"confirm": target["name"]}).status_code == 404
+    assert client.get(f"/api/accounts/{target['id']}").status_code == 200
+    blocked = client.delete(
+        f"/api/accounts/{target['id']}", params={"confirm": target["name"]}, headers={"X-Jacklyn-Request": ""}
+    )
+    assert blocked.status_code == 403  # CSRF protection covers deletes too

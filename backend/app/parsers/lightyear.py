@@ -1,11 +1,14 @@
 """Lightyear account statement (CSV export from the app's Statements screen)."""
 
+from decimal import Decimal
 from typing import ClassVar
 
 from app.enums import TransactionType
 from app.parsers.base import AccountHint, ParseResult, RawStatement
 from app.parsers.generic import MappingField
 from app.parsers.presets import PresetTableParser
+from app.parsers.text import NumberFormatError, parse_decimal
+from app.schemas.standard import StandardTransaction
 
 
 class LightyearCSVParser(PresetTableParser):
@@ -51,4 +54,33 @@ class LightyearCSVParser(PresetTableParser):
     def normalize(self, statement: RawStatement) -> ParseResult:
         result = super().normalize(statement)
         result.account_hint = AccountHint(broker=self.broker)
+        net_by_row = {record.row: record.fields.get("Net Amt.", "") for record in statement.records}
+        for parsed in result.rows:
+            parsed.transaction = _settle_fees(parsed.transaction, net_by_row.get(parsed.row, ""))
         return result
+
+
+def _settle_fees(tx: StandardTransaction, raw_net: str) -> StandardTransaction:
+    """Lightyear's "Gross Amount" already contains the fee on buys and conversions.
+
+    Re-express each line so Jacklyn's cash flow (amount +/- fee) equals Lightyear's "Net Amt.":
+    buys pay net + fee, conversion legs move net and pay the fee on top, sells keep gross - fee.
+    """
+    try:
+        net = parse_decimal(raw_net, ".")
+    except NumberFormatError:
+        net = None
+    if net is None:
+        return tx
+    if tx.type is TransactionType.BUY:
+        return tx.model_copy(update={"amount": abs(net)})
+    if tx.type is TransactionType.FX_CONVERSION:
+        return tx.model_copy(update={"amount": net})
+    if (
+        tx.type in (TransactionType.DEPOSIT, TransactionType.WITHDRAWAL)
+        and tx.amount is not None
+        and abs(net) == tx.amount
+    ):
+        # Card top-up fees are shown but not taken from the credited amount.
+        return tx.model_copy(update={"fee": Decimal(0)})
+    return tx

@@ -9,6 +9,8 @@ from app.enums import AssetClass, TransactionType
 from app.parsers import ColumnMappingConfig, GenericCSVParser, MappingField, SourceFile, detect_parser
 from app.parsers.generic import build_table_preview, guess_columns, guess_transaction_type
 from app.parsers.ibkr import IBKRActivityCSVParser, IBKRFlexXMLParser
+from app.parsers.lightyear import LightyearCSVParser
+from app.schemas.standard import cash_flow
 from tests.conftest import fixture_bytes
 
 T = TransactionType
@@ -88,14 +90,28 @@ def test_lightyear_statement() -> None:
     assert detection is not None
     result = detection.parser.run(source("lightyear.csv"))
     assert result.errors == []
-    assert len(result.transactions) == 7
+    assert len(result.transactions) == 8
     first = result.transactions[0]
     assert (first.date, first.type, first.amount) == (dt.date(2025, 1, 2), T.DEPOSIT, Decimal("1000.00"))
     conversion = [t for t in result.transactions if t.type is T.FX_CONVERSION]
-    assert [(t.currency, t.amount) for t in conversion] == [("EUR", Decimal("-200.00")), ("USD", Decimal("206.20"))]
+    assert [(t.currency, t.amount) for t in conversion] == [("EUR", Decimal("-199.30")), ("USD", Decimal("205.48"))]
     nvda = next(t for t in result.transactions if t.type is T.BUY and t.symbol == "NVDA")
     assert nvda.quantity == Decimal("1.4")
-    assert nvda.fee == Decimal("1.00")
+    assert nvda.amount == Decimal("193.90")  # net = quantity x price; the fee is separate
+    assert nvda.fee == Decimal("0.20")
+
+
+def test_lightyear_cash_matches_net_amounts() -> None:
+    """Lightyear's gross already includes fees on buys and conversions - fees must not be counted twice."""
+    result = LightyearCSVParser().run(source("lightyear.csv"))
+    cash: dict[str, Decimal] = {}
+    for t in result.transactions:
+        flow = cash_flow(t.type, t.amount, t.fee, t.tax, has_asset=bool(t.symbol or t.isin))
+        cash[t.currency] = cash.get(t.currency, Decimal(0)) + flow
+    # EUR: +1000 deposit (top-up fee not deducted) - 691.20 buy - 200.00 conversion + 0.85 interest
+    assert cash["EUR"] == Decimal("109.65")
+    # USD: +205.48 conversion - 194.10 buy + 0.07 net dividend + 59.94 net sale
+    assert cash["USD"] == Decimal("71.39")
 
 
 def test_erste_netbroker_cp1250_semicolons_and_comma_decimals() -> None:

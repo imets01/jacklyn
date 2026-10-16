@@ -113,6 +113,15 @@ export function useCreateAccount() {
   })
 }
 
+export function useDeleteAccount() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, confirm }: { id: number; confirm: string }) =>
+      api.delete<void>(`/api/accounts/${id}?${new URLSearchParams({ confirm })}`),
+    onSuccess: () => invalidateLedger(client),
+  })
+}
+
 export interface PreviewRequest {
   file: File
   accountId?: number | null

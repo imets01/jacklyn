@@ -90,6 +90,7 @@ class MarketDataService:
         self._session_factory = session_factory
         self._settings = settings
         self._lock = threading.Lock()
+        self._lookup_attempted: set[int] = set()  # asset ids already probed this process
         self.last_refresh_at: dt.datetime | None = None
         self.last_error: str | None = None
 
@@ -144,6 +145,7 @@ class MarketDataService:
     # ---------------------------------------------------------------- assets
 
     def _refresh_assets(self, session: Session, report: RefreshReport) -> None:
+        self._resolve_missing_tickers(session)
         rows = session.execute(
             select(Asset, func.min(Transaction.trade_date))
             .join(Transaction, Transaction.asset_id == Asset.id)
@@ -169,6 +171,35 @@ class MarketDataService:
                 if points:
                     report.rows_written += _upsert_prices(session, asset.id, points)
                     report.assets_updated += 1
+
+    def _resolve_missing_tickers(self, session: Session) -> None:
+        """Find a Yahoo listing for held assets that have none."""
+        last_trade = (
+            select(Transaction.asset_id, func.max(Transaction.trade_date).label("last"))
+            .where(Transaction.unit_price.is_not(None))
+            .group_by(Transaction.asset_id)
+            .subquery()
+        )
+        rows = session.execute(
+            select(Asset, Transaction.unit_price)
+            .join(last_trade, last_trade.c.asset_id == Asset.id)
+            .join(
+                Transaction,
+                (Transaction.asset_id == Asset.id) & (Transaction.trade_date == last_trade.c.last),
+            )
+            .where(Asset.yf_ticker.is_(None))
+        ).all()
+        seen: set[int] = set()
+        for asset, reference_price in rows:
+            if asset.id in seen or asset.id in self._lookup_attempted or reference_price is None:
+                continue
+            seen.add(asset.id)
+            self._lookup_attempted.add(asset.id)
+            ticker = find_listing(asset.symbol, asset.currency, reference_price)
+            if ticker:
+                logger.info("Matched %s (%s) to Yahoo listing %s", asset.symbol, asset.currency, ticker)
+                asset.yf_ticker = ticker
+        session.flush()
 
     @staticmethod
     def _asset_start(session: Session, asset: Asset, first_trade: dt.date) -> dt.date:
@@ -266,3 +297,36 @@ def _upsert_fx(session: Session, currency: str, points: dict[dt.date, Decimal]) 
         else:
             session.add(FxRate(base="USD", quote=currency, rate_date=date, rate=rate, source=PriceSource.YFINANCE))
     return len(points)
+
+
+# Exchanges to try, in order, when an asset's listing is unknown. Yahoo's ISIN search tends to
+# return a different-currency listing (e.g. London USD), so we probe by symbol and verify instead.
+LISTING_SUFFIXES: dict[str, tuple[str, ...]] = {
+    "EUR": (".DE", ".AS", ".PA", ".MI", ".F", ".BR", ".MC", ".VI"),
+    "USD": ("",),
+    "CHF": (".SW",),
+    "GBP": (".L",),
+    "HUF": (".BD",),
+}
+
+
+def find_listing(symbol: str, currency: str, reference_price: Decimal) -> str | None:
+    """First listing whose currency matches and whose price is plausible versus the last trade price."""
+    import yfinance as yf  # noqa: PLC0415 - lazy: heavy import
+
+    if not symbol.replace(".", "").replace("-", "").isalnum() or len(symbol) > 12:
+        return None
+    for suffix in LISTING_SUFFIXES.get(currency, ()):
+        ticker = f"{symbol}{suffix}"
+        try:
+            info = yf.Ticker(ticker).fast_info
+            listed_currency = info.get("currency")
+            price = info.get("lastPrice")
+        except Exception:  # noqa: BLE001 - unknown symbols raise all sorts of errors
+            continue
+        if listed_currency != currency or not price or math.isnan(price):
+            continue
+        ratio = Decimal(repr(float(price))) / reference_price
+        if Decimal("0.2") <= ratio <= Decimal("5"):  # guards against a same-symbol, different security
+            return ticker
+    return None
