@@ -5,6 +5,7 @@ from sqlalchemy import JSON, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
+from app.db.types import EncryptedText
 from app.enums import ImportSource, ImportStatus
 from app.models._common import enum_column, utcnow
 
@@ -44,11 +45,7 @@ class CustomCSVMapping(Base):
 
 
 class BrokerCredential(Base):
-    """API-sync credentials (e.g. IBKR Flex read-only token + query id).
-
-    Phase 1 stores the secret as-is for a local single-user install; encrypt at rest
-    before exposing the app to other users (Phase 2).
-    """
+    """API-sync credentials (e.g. IBKR Flex read-only token + query id). The token is encrypted at rest."""
 
     __tablename__ = "broker_credentials"
 
@@ -56,7 +53,7 @@ class BrokerCredential(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     account_id: Mapped[int | None] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"))
     provider: Mapped[str] = mapped_column(String(32))
-    token: Mapped[str] = mapped_column(Text)
+    token: Mapped[str] = mapped_column(EncryptedText())
     query_id: Mapped[str | None] = mapped_column(String(64))
     last_synced_at: Mapped[dt.datetime | None]
     created_at: Mapped[dt.datetime] = mapped_column(default=utcnow)

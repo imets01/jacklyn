@@ -2,32 +2,50 @@
 #
 #   docker compose up -d --build                     # SQLite in a named volume
 #   docker compose --profile postgres up -d --build  # with PostgreSQL (set DATABASE_URL in .env)
+#   docker compose --profile tunnel up -d --build    # + Cloudflare Tunnel (see docs/cloudflare-tunnel.md)
 #
-# UI: http://<host>:${JACKLYN_PORT:-8080}   (nginx serves the SPA and proxies /api to the backend)
+# By default the UI is published on 127.0.0.1 only (http://localhost:8080): nothing is reachable from
+# your network or the internet. Set JACKLYN_BIND=0.0.0.0 for LAN access, or use the tunnel profile.
+#
+# Hardening: containers run as non-root with read-only filesystems, no Linux capabilities and no privilege
+# escalation. Only nginx is published; the API and database are reachable from nginx alone, and the tunnel
+# connector can reach nginx but nothing else.
 
 name: jacklyn
 
+x-hardened: &hardened
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  restart: unless-stopped
+
 services:
   backend:
+    <<: *hardened
     build: ./backend
-    restart: unless-stopped
     env_file:
       - path: .env
         required: false
     environment:
       DATABASE_URL: ${DATABASE_URL:-sqlite:////app/data/jacklyn.db}
     volumes:
-      - jacklyn-data:/app/data
+      - jacklyn-data:/app/data  # database (SQLite), secret.key, setup token, caches - back this up
+    tmpfs:
+      - /tmp
+    networks: [app]
     depends_on:
       postgres:
         condition: service_healthy
         required: false
 
   frontend:
+    <<: *hardened
     build: ./frontend
-    restart: unless-stopped
     ports:
-      - "${JACKLYN_PORT:-8080}:80"
+      - "${JACKLYN_BIND:-127.0.0.1}:${JACKLYN_PORT:-8080}:8080"
+    tmpfs:
+      - /tmp
+    networks: [app, edge]
     depends_on:
       backend:
         condition: service_healthy
@@ -36,17 +54,40 @@ services:
     image: postgres:17-alpine
     profiles: ["postgres"]
     restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-jacklyn}
       POSTGRES_USER: ${POSTGRES_USER:-jacklyn}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    networks: [app]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # Outbound-only connector to Cloudflare: no open ports, no port forwarding on your router.
+  cloudflared:
+    <<: *hardened
+    image: cloudflare/cloudflared:latest
+    profiles: ["tunnel"]
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    networks:
+      edge:
+        ipv4_address: 172.30.250.10  # nginx trusts CF-Connecting-IP from this address only
+    depends_on:
+      - frontend
+
+networks:
+  app: {}  # nginx <-> API <-> database
+  edge:  # tunnel connector <-> nginx only
+    ipam:
+      config:
+        - subnet: 172.30.250.0/24
 
 volumes:
   jacklyn-data:

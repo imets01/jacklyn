@@ -15,7 +15,7 @@ from typing import Any, TypedDict
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.config import Settings
+from app.config import Settings, get_settings
 from app.enums import PriceSource
 from app.models import Account, Asset, AssetPrice, FxRate, Transaction, User
 
@@ -54,6 +54,11 @@ def _to_decimal(value: Any, quantum: Decimal) -> Decimal | None:
 def _download_closes(tickers: list[str], start: dt.date) -> dict[str, dict[dt.date, Any]]:
     """{ticker: {date: close}} using one batched yfinance request."""
     import yfinance as yf  # noqa: PLC0415 - lazy: pulls in pandas, keeps API startup fast
+
+    # Keep yfinance's cache on the data volume so the container filesystem can stay read-only.
+    cache_dir = get_settings().data_dir / "yf-cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    yf.set_tz_cache_location(str(cache_dir))
 
     frame = yf.download(
         tickers,

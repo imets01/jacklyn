@@ -10,7 +10,8 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': { target: apiTarget, changeOrigin: true },
+      // Keep the browser's Host header: the API's CSRF check compares it with Origin.
+      '/api': { target: apiTarget, changeOrigin: false },
     },
   },
   build: {

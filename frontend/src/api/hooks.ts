@@ -42,7 +42,10 @@ export function useUpdateMe() {
   const client = useQueryClient()
   return useMutation({
     mutationFn: (patch: Partial<Pick<User, 'base_currency' | 'display_name'>>) => api.patch<User>('/api/me', patch),
-    onSuccess: (user) => client.setQueryData(queryKeys.me, user),
+    onSuccess: (user) => {
+      client.setQueryData(queryKeys.me, user)
+      return client.invalidateQueries({ queryKey: ['auth', 'session'] })
+    },
   })
 }
 

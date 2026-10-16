@@ -1,32 +1,47 @@
 export class ApiError extends Error {
   readonly status: number
+  /** Machine-readable reason when the API provides one (e.g. "totp_required"). */
+  readonly code: string | null
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, code: string | null = null) {
     super(message)
     this.name = 'ApiError'
     this.status = status
+    this.code = code
   }
 }
+
+/** Fired when the server says the session is gone, so the app can drop back to the sign-in screen. */
+export const UNAUTHORIZED_EVENT = 'jacklyn:unauthorized'
 
 interface FastApiValidationIssue {
   loc?: (string | number)[]
   msg?: string
 }
 
-function describeError(body: unknown, fallback: string): string {
+function describeError(body: unknown, fallback: string): { message: string; code: string | null } {
   if (body && typeof body === 'object' && 'detail' in body) {
     const detail = (body as { detail: unknown }).detail
-    if (typeof detail === 'string') return detail
+    if (typeof detail === 'string') return { message: detail, code: null }
     if (Array.isArray(detail)) {
-      return (detail as FastApiValidationIssue[])
+      const message = (detail as FastApiValidationIssue[])
         .map((issue) => {
           const field = issue.loc?.filter((part) => part !== 'body').join('.')
-          return field ? `${field}: ${issue.msg ?? 'invalid'}` : (issue.msg ?? 'invalid')
+          const text = (issue.msg ?? 'invalid').replace(/^Value error, /, '')
+          return field ? `${field}: ${text}` : text
         })
         .join('; ')
+      return { message, code: null }
+    }
+    if (detail && typeof detail === 'object') {
+      const { message, code } = detail as { message?: unknown; code?: unknown }
+      return {
+        message: typeof message === 'string' ? message : fallback,
+        code: typeof code === 'string' ? code : null,
+      }
     }
   }
-  return fallback
+  return { message: fallback, code: null }
 }
 
 type Query = Record<string, string | number | boolean | null | undefined | (string | number)[]>
@@ -44,7 +59,8 @@ function withQuery(path: string, query?: Query): string {
 }
 
 async function request<T>(method: string, path: string, init: { query?: Query; json?: unknown; form?: FormData } = {}): Promise<T> {
-  const headers: Record<string, string> = { Accept: 'application/json' }
+  // The custom header is the API's CSRF check: cross-site forms can't send it.
+  const headers: Record<string, string> = { Accept: 'application/json', 'X-Jacklyn-Request': '1' }
   let body: BodyInit | undefined
   if (init.json !== undefined) {
     headers['Content-Type'] = 'application/json'
@@ -52,7 +68,7 @@ async function request<T>(method: string, path: string, init: { query?: Query; j
   } else if (init.form) {
     body = init.form
   }
-  const response = await fetch(withQuery(path, init.query), { method, headers, body })
+  const response = await fetch(withQuery(path, init.query), { method, headers, body, credentials: 'same-origin' })
   if (response.status === 204) return undefined as T
   const text = await response.text()
   let parsed: unknown = undefined
@@ -64,7 +80,9 @@ async function request<T>(method: string, path: string, init: { query?: Query; j
     }
   }
   if (!response.ok) {
-    throw new ApiError(response.status, describeError(parsed, `${response.status} ${response.statusText}`))
+    const { message, code } = describeError(parsed, `${response.status} ${response.statusText}`)
+    if (response.status === 401 && !path.startsWith('/api/auth/')) window.dispatchEvent(new Event(UNAUTHORIZED_EVENT))
+    throw new ApiError(response.status, message, code)
   }
   return parsed as T
 }

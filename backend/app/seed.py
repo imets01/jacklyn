@@ -1,4 +1,7 @@
-"""Startup seeding: the default user (always) and a realistic demo portfolio (first run only).
+"""Startup seeding: an unclaimed owner account and a realistic demo portfolio (first run only).
+
+The owner has no password until first-run setup claims it (see app.api.auth), so a fresh instance
+can't be used by anyone who doesn't hold the setup token.
 
 Demo prices/FX are a deterministic synthetic history ending near realistic levels, so the dashboard
 is alive offline. When live market data is enabled, yfinance replaces them with real history.
@@ -28,18 +31,22 @@ FX_QUANTUM = Decimal("0.000001")
 SQRT3 = Decimal(3).sqrt()
 
 
-def ensure_default_user(session: Session, settings: Settings) -> User:
-    user = session.scalar(select(User).where(User.email == settings.default_user_email))
-    if user is None:
-        user = User(
-            email=settings.default_user_email,
-            display_name=settings.default_user_name,
-            base_currency=settings.default_base_currency,
+def ensure_owner(session: Session, settings: Settings) -> User | None:
+    """The admin account waiting to be claimed, created on an empty database. None once claimed."""
+    if session.scalar(select(User.id).limit(1)) is None:
+        session.add(
+            User(
+                email=settings.default_user_email,
+                display_name=settings.default_user_name,
+                base_currency=settings.default_base_currency,
+                is_admin=True,
+            )
         )
-        session.add(user)
         session.commit()
-        logger.info("Created default user %s", user.email)
-    return user
+        logger.info("Created the owner account (claimed during first-run setup)")
+    return session.scalar(
+        select(User).where(User.is_admin.is_(True), User.password_hash.is_(None)).order_by(User.id).limit(1)
+    )
 
 
 @dataclass(frozen=True)
@@ -493,8 +500,8 @@ class DemoPortfolio:
 
 
 def seed(session: Session, settings: Settings) -> None:
-    user = ensure_default_user(session, settings)
-    if not settings.seed_demo_data:
+    user = ensure_owner(session, settings)
+    if user is None or not settings.seed_demo_data:
         return
     if session.scalar(select(Account.id).where(Account.user_id == user.id).limit(1)) is not None:
         return

@@ -3,16 +3,10 @@ import './index.css'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter, Route, Routes } from 'react-router'
+import { BrowserRouter } from 'react-router'
 
 import { ApiError } from './api/client'
-import { AppShell } from './components/layout/AppShell'
-import { PreferencesProvider } from './lib/preferences'
-import { AccountDetailPage } from './pages/AccountDetailPage'
-import { AccountsPage } from './pages/AccountsPage'
-import { DashboardPage } from './pages/DashboardPage'
-import { ImportPage } from './pages/ImportPage'
-import { NotFound } from './pages/NotFound'
+import { AuthGate } from './AuthGate'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -30,19 +24,9 @@ if (!root) throw new Error('Missing #root element')
 createRoot(root).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <PreferencesProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route element={<AppShell />}>
-              <Route index element={<DashboardPage />} />
-              <Route path="accounts" element={<AccountsPage />} />
-              <Route path="accounts/:accountId" element={<AccountDetailPage />} />
-              <Route path="import" element={<ImportPage />} />
-              <Route path="*" element={<NotFound />} />
-            </Route>
-          </Routes>
-        </BrowserRouter>
-      </PreferencesProvider>
+      <BrowserRouter>
+        <AuthGate />
+      </BrowserRouter>
     </QueryClientProvider>
   </StrictMode>,
 )

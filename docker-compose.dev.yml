@@ -2,13 +2,13 @@
 #
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 #
-# UI with HMR on http://localhost:5173, API with --reload on http://localhost:8000.
+# UI with HMR on http://localhost:5173, API with --reload on http://localhost:8000 (localhost only).
 
 services:
   backend:
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--proxy-headers"]
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - ./backend/app:/app/app
       - ./backend/migrations:/app/migrations
@@ -17,11 +17,12 @@ services:
     build:
       context: ./frontend
       target: build
+    read_only: false  # Vite writes its dependency cache
     command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
     environment:
       VITE_API_PROXY: http://backend:8000
     ports: !override
-      - "5173:5173"
+      - "127.0.0.1:5173:5173"
     volumes:
       - ./frontend/src:/app/src
       - ./frontend/index.html:/app/index.html

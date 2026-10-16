@@ -1,41 +1,78 @@
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from urllib.parse import urlsplit
 
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, Request, Response
+from fastapi.responses import JSONResponse
 
 from app import __version__
 from app.api import api_router
 from app.config import get_settings
 from app.db import SessionLocal
 from app.db.migrate import upgrade_to_head
+from app.security.throttle import LoginThrottle
 from app.seed import seed
+from app.services.auth import SetupGuard, needs_setup, purge_expired_sessions
 from app.services.market_data import MarketDataService
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+
+CSRF_HEADER = "x-jacklyn-request"
+UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "same-origin",
+}
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     upgrade_to_head(settings.database_url)
+    app.state.login_throttle = LoginThrottle(settings.login_ip_max_failures)
+    app.state.setup_guard = SetupGuard()
     with SessionLocal() as session:
         seed(session, settings)
+        purge_expired_sessions(session)
+        if needs_setup(session):
+            app.state.setup_guard.arm()
     app.state.market = MarketDataService(SessionLocal, settings)
     app.state.market.refresh_in_background()
     yield
 
 
+def _same_origin(request: Request) -> bool:
+    """Browsers send Origin on cross-site writes; it must name this very host."""
+    origin = request.headers.get("origin")
+    if origin is None:
+        return True
+    host = request.headers.get("x-forwarded-host") or request.headers.get("host") or ""
+    return urlsplit(origin).netloc == host
+
+
 def create_app() -> FastAPI:
-    settings = get_settings()
     app = FastAPI(title="Jacklyn API", version=__version__, lifespan=lifespan)
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.cors_origins,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+
+    @app.middleware("http")
+    async def protect(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+        is_api = request.url.path.startswith("/api/")
+        # CSRF: state-changing API calls must come from our own UI. A custom header can't be set by a
+        # cross-site form or image, and cross-origin fetches with it would need a CORS preflight we never grant.
+        if (
+            is_api
+            and request.method in UNSAFE_METHODS
+            and (request.headers.get(CSRF_HEADER) != "1" or not _same_origin(request))
+        ):
+            return JSONResponse({"detail": "Request blocked (cross-site request protection)."}, status_code=403)
+        response = await call_next(request)
+        for name, value in SECURITY_HEADERS.items():
+            response.headers.setdefault(name, value)
+        if is_api:
+            response.headers["Cache-Control"] = "no-store"  # financial data never sits in a cache
+        return response
+
     app.include_router(api_router)
 
     @app.get("/api/health", tags=["meta"])

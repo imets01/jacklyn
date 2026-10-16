@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -33,8 +34,23 @@ class Settings(BaseSettings):
     live_market_data: bool = True
     market_data_ttl_seconds: int = 900
 
-    cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
     max_upload_mb: int = 20
+
+    # Where generated secrets (secret.key, setup-token.txt) and caches live. A Docker volume in production.
+    data_dir: Path = BACKEND_DIR / "data"
+    # Encrypts TOTP secrets and broker API tokens at rest. Generated into data_dir if unset.
+    secret_key: str | None = None
+    # One-time token for the first-run admin setup. Generated and logged if unset.
+    setup_token: str | None = None
+
+    # Sessions & login protection
+    session_days: int = 30
+    # "auto": Secure cookies whenever the request arrived over HTTPS (e.g. through Cloudflare).
+    cookie_secure: Literal["auto", "true", "false"] = "auto"
+    login_ip_max_failures: int = 20  # per IP per 15 minutes
+    lockout_threshold: int = 5  # consecutive failures before an account is locked
+    lockout_minutes: int = 15
+    invite_days: int = 7
 
     @field_validator("default_base_currency")
     @classmethod

@@ -1,6 +1,8 @@
 import { clsx } from 'clsx'
-import { FileUp, LayoutDashboard, Monitor, Moon, Sun, Wallet } from 'lucide-react'
-import { NavLink, Outlet } from 'react-router'
+import { FileUp, LayoutDashboard, LogOut, Monitor, Moon, Settings, Sun, Wallet } from 'lucide-react'
+import { Link, NavLink, Outlet } from 'react-router'
+
+import { useLogout, useSession } from '../../api/auth'
 
 import { usePreferences, type ThemePreference } from '../../lib/preferences-context'
 import { Logo, LogoMark } from '../ui/Logo'
@@ -43,6 +45,35 @@ function ThemeSwitch({ compact = false }: { compact?: boolean }) {
   )
 }
 
+function UserCard() {
+  const session = useSession()
+  const logout = useLogout()
+  const me = session.data?.user
+  if (!me) return null
+  return (
+    <div className="flex items-center gap-2 rounded-2xl border border-line bg-surface p-2">
+      <Link to="/settings" className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl p-1 hover:bg-surface-2" title="Settings">
+        <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-accent-soft font-display text-sm font-bold text-accent" aria-hidden>
+          {me.display_name.slice(0, 1).toUpperCase()}
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-medium text-ink">{me.display_name}</span>
+          <span className="block truncate text-xs text-ink-3">{me.email}</span>
+        </span>
+      </Link>
+      <button
+        type="button"
+        onClick={() => logout.mutate()}
+        className="grid size-8 shrink-0 place-items-center rounded-xl text-ink-3 hover:bg-surface-2 hover:text-ink"
+        title="Sign out"
+        aria-label="Sign out"
+      >
+        <LogOut className="size-4" aria-hidden />
+      </button>
+    </div>
+  )
+}
+
 export function AppShell() {
   return (
     <div className="min-h-dvh bg-canvas">
@@ -69,11 +100,11 @@ export function AppShell() {
             </NavLink>
           ))}
         </nav>
-        <div className="mt-auto flex flex-col gap-4 px-2">
-          <ThemeSwitch />
-          <p className="text-xs leading-relaxed text-ink-3">
-            Self-hosted · your data stays on your machine.
-          </p>
+        <div className="mt-auto flex flex-col gap-3">
+          <div className="px-2">
+            <ThemeSwitch />
+          </div>
+          <UserCard />
         </div>
       </aside>
 
@@ -95,9 +126,9 @@ export function AppShell() {
       {/* Mobile tab bar */}
       <nav
         aria-label="Main"
-        className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-3 border-t border-line bg-surface/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 backdrop-blur lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-4 border-t border-line bg-surface/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 backdrop-blur lg:hidden"
       >
-        {NAV.map(({ to, label, icon: Icon, end }) => (
+        {[...NAV, { to: '/settings', label: 'Settings', icon: Settings, end: false }].map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}
             to={to}

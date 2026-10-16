@@ -1,8 +1,9 @@
 import datetime as dt
+import logging
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import DateTime, Dialect, Numeric, String
+from sqlalchemy import DateTime, Dialect, Numeric, String, Text
 from sqlalchemy.types import TypeDecorator, TypeEngine
 
 
@@ -71,3 +72,33 @@ class UTCDateTime(TypeDecorator[dt.datetime]):
 
     def __repr__(self) -> str:
         return "UTCDateTime()"
+
+
+class EncryptedText(TypeDecorator[str]):
+    """Text encrypted at rest (Fernet, key from JACKLYN_SECRET_KEY / data/secret.key)."""
+
+    impl = Text
+    cache_ok = True
+
+    def process_bind_param(self, value: Any, dialect: Dialect) -> Any:
+        if value is None:
+            return None
+        from app.security.secrets import encrypt  # noqa: PLC0415 - avoids a settings import cycle
+
+        return encrypt(str(value))
+
+    def process_result_value(self, value: Any, dialect: Dialect) -> str | None:
+        if value is None:
+            return None
+        from app.security.secrets import decrypt  # noqa: PLC0415
+
+        try:
+            return decrypt(str(value))
+        except ValueError:
+            # Wrong/rotated secret key: don't take the whole app down. Callers treat the secret as missing,
+            # and anything security-relevant (2FA) fails closed - see services.auth.authenticate.
+            logging.getLogger(__name__).error("An encrypted value can't be decrypted - was the secret key changed?")
+            return None
+
+    def __repr__(self) -> str:
+        return "EncryptedText()"
