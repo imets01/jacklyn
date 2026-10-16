@@ -1,0 +1,28 @@
+// Alocasia Jacklyn leaf hanging tip-down: four soft bumps per side, a long tapering tip and
+// chevron veins. Same geometry as public/favicon.svg, themed through CSS variables.
+const BLADE =
+  'M32 19C33.69 19 35.02 11.42 36.6 8.6C38.18 5.78 39.28 4 40.6 3.6C41.92 3.2 43.76 4.24 43.8 6.4C43.84 8.56 40.4 13.9 40.8 15.4C41.2 16.9 44.39 14.23 46 14.6C47.61 14.97 49.38 16.15 49.6 17.4C49.82 18.65 48.7 20.08 47.2 21.4C45.7 22.72 41.58 23.83 41.4 24.6C41.22 25.37 44.81 24.76 46.2 25.6C47.59 26.44 49.07 27.88 49 29.2C48.93 30.52 47.3 31.66 45.8 32.8C44.3 33.94 41.02 34.7 40.8 35.4C40.58 36.1 43.5 35.79 44.6 36.6C45.7 37.41 46.95 38.63 46.8 39.8C46.65 40.97 45.27 41.9 43.8 43C42.33 44.1 40.12 44.15 38.8 45.8C37.48 47.45 37.44 49.84 36.6 52C35.76 54.16 35.04 55.77 34.2 57.6C33.36 59.43 32.81 62 32 62C31.19 62 30.64 59.43 29.8 57.6C28.96 55.77 28.24 54.16 27.4 52C26.56 49.84 26.52 47.45 25.2 45.8C23.88 44.15 21.67 44.1 20.2 43C18.73 41.9 17.35 40.97 17.2 39.8C17.05 38.63 18.3 37.41 19.4 36.6C20.5 35.79 23.42 36.1 23.2 35.4C22.98 34.7 19.7 33.94 18.2 32.8C16.7 31.66 15.07 30.52 15 29.2C14.93 27.88 16.41 26.44 17.8 25.6C19.19 24.76 22.78 25.37 22.6 24.6C22.42 23.83 18.3 22.72 16.8 21.4C15.3 20.08 14.18 18.65 14.4 17.4C14.62 16.15 16.39 14.97 18 14.6C19.61 14.23 22.8 16.9 23.2 15.4C23.6 13.9 20.16 8.56 20.2 6.4C20.24 4.24 22.08 3.2 23.4 3.6C24.72 4 25.82 5.78 27.4 8.6C28.98 11.42 30.31 19 32 19Z'
+const VEINS =
+  'M32 21.5V57.5M32 21.5C33.6 20.4 35 18.3 35.6 16.2L40.4 7.4M32 21.5C30.4 20.4 29 18.3 28.4 16.2L23.6 7.4M32 27Q37.67 20.28 44.6 18.6M32 27Q26.33 20.28 19.4 18.6M32 34Q37.76 30 44.8 29M32 34Q26.24 30 19.2 29M32 41.5Q36.86 39.98 42.8 39.6M32 41.5Q27.14 39.98 21.2 39.6'
+const TRANSFORM = 'translate(30.08 32.36) rotate(14) scale(0.88) translate(-32 -32)'
+
+export function LogoMark({ className = 'size-8' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 64 64" className={className} aria-hidden>
+      <rect width="64" height="64" rx="18" fill="var(--accent)" />
+      <g transform={TRANSFORM}>
+        <path d={BLADE} fill="var(--accent-soft)" />
+        <path d={VEINS} fill="none" stroke="var(--accent)" strokeOpacity="0.5" strokeWidth="1" strokeLinecap="round" />
+      </g>
+    </svg>
+  )
+}
+
+export function Logo() {
+  return (
+    <div className="flex items-center gap-2.5">
+      <LogoMark />
+      <span className="font-display text-lg font-bold tracking-tight text-ink">Jacklyn</span>
+    </div>
+  )
+}

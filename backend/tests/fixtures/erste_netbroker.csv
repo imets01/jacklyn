@@ -1,0 +1,9 @@
+Erste Befektetési Zrt. - NetBroker
+Ügyletek listája;2025.01.01. - 2025.03.31.
+Számlaszám;12345678
+
+Kötésnap;Ügylet típusa;Értékpapír neve;ISIN;Mennyiség;Árfolyam;Kötési érték;Jutalék;Deviza;Megbízás száma
+2025.01.08.;Vétel;OTP Bank Nyrt.;HU0000061726;40;25 120,00;1 004 800,00;3 516,80;HUF;NB-000123
+2025.01.08.;Vétel;MOL Nyrt.;HU0000153937;300;2 905,50;871 650,00;3 050,78;HUF;NB-000124
+2025.02.14.;Eladás;MOL Nyrt.;HU0000153937;100;3 012,00;301 200,00;1 900,00;HUF;NB-000201
+2025.03.03.;Osztalék;Richter Gedeon Nyrt.;HU0000123096;;;20 000,00;;HUF;NB-000310

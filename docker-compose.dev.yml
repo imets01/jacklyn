@@ -1,0 +1,27 @@
+# Hot-reload development inside containers (alternative to scripts/dev.*):
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#
+# UI with HMR on http://localhost:5173, API with --reload on http://localhost:8000.
+
+services:
+  backend:
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend/app:/app/app
+      - ./backend/migrations:/app/migrations
+
+  frontend:
+    build:
+      context: ./frontend
+      target: build
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+    environment:
+      VITE_API_PROXY: http://backend:8000
+    ports: !override
+      - "5173:5173"
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/index.html:/app/index.html

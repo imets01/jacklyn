@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FlexQueryResponse queryName="Jacklyn" type="AF">
+  <FlexStatements count="1">
+    <FlexStatement accountId="U1234567" fromDate="20250101" toDate="20250331" period="LastQuarter" whenGenerated="20250401;083000">
+      <AccountInformation accountId="U1234567" currency="CHF" />
+      <Trades>
+        <Trade accountId="U1234567" currency="USD" assetCategory="STK" subCategory="COMMON" symbol="AAPL" description="APPLE INC" isin="US0378331005" listingExchange="NASDAQ" tradeID="501" transactionID="9001" tradeDate="20250106" dateTime="20250106;103102" quantity="10" tradePrice="243.15" proceeds="-2431.5" ibCommission="-1" ibCommissionCurrency="USD" buySell="BUY" levelOfDetail="EXECUTION" />
+        <Trade accountId="U1234567" currency="USD" assetCategory="STK" subCategory="ETF" symbol="VWRA" description="VANGUARD FTSE ALL-WORLD UCITS" isin="IE00BK5BQT80" listingExchange="LSEETF" tradeID="502" transactionID="9002" tradeDate="20250107" dateTime="20250107;091500" quantity="20" tradePrice="139.80" proceeds="-2796" ibCommission="-2.5" ibCommissionCurrency="USD" buySell="BUY" levelOfDetail="EXECUTION" />
+        <Trade accountId="U1234567" currency="USD" assetCategory="STK" subCategory="ETF" symbol="VWRA" isin="IE00BK5BQT80" tradeID="502" tradeDate="20250107" quantity="20" tradePrice="139.80" levelOfDetail="CLOSED_LOT" />
+        <Trade accountId="U1234567" currency="CHF" assetCategory="CASH" symbol="USD.CHF" description="USD.CHF" tradeID="503" transactionID="9003" tradeDate="20250103" dateTime="20250103;080000" quantity="5000" tradePrice="0.9071" proceeds="-4535.5" ibCommission="-1.73" ibCommissionCurrency="CHF" buySell="BUY" levelOfDetail="EXECUTION" />
+      </Trades>
+      <CashTransactions>
+        <CashTransaction accountId="U1234567" currency="USD" symbol="AAPL" isin="US0378331005" description="AAPL(US0378331005) CASH DIVIDEND USD 0.25 PER SHARE (Ordinary Dividend)" dateTime="20250213" amount="2.5" type="Dividends" transactionID="7001" levelOfDetail="DETAIL" />
+        <CashTransaction accountId="U1234567" currency="USD" symbol="AAPL" isin="US0378331005" description="AAPL(US0378331005) CASH DIVIDEND USD 0.25 PER SHARE - US TAX" dateTime="20250213" amount="-0.38" type="Withholding Tax" transactionID="7002" levelOfDetail="DETAIL" />
+        <CashTransaction accountId="U1234567" currency="CHF" description="CASH RECEIPTS / ELECTRONIC FUND TRANSFERS" dateTime="20250102" amount="10000" type="Deposits/Withdrawals" transactionID="7003" levelOfDetail="DETAIL" />
+        <CashTransaction accountId="U1234567" currency="CHF" description="Summary row" dateTime="20250102" amount="10000" type="Deposits/Withdrawals" levelOfDetail="SUMMARY" />
+      </CashTransactions>
+    </FlexStatement>
+  </FlexStatements>
+</FlexQueryResponse>

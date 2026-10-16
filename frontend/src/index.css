@@ -1,0 +1,157 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/plus-jakarta-sans';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Alocasia palette. Semantic tokens switch between light and dark; components only use the
+ * semantic names (bg-canvas, bg-surface, text-ink, ...), never raw hex.
+ */
+:root {
+  color-scheme: light;
+  --canvas: #f8faf9;
+  --surface: #ffffff;
+  --surface-2: #f2f6f3;
+  --surface-3: #e8efea;
+  --line: #e2e9e4;
+  --line-strong: #cfd9d2;
+  --ink: #0f1a14;
+  --ink-2: #4a5a50;
+  --ink-3: #7b8a81;
+  --accent: #2d5a3c;
+  --accent-hover: #244a31;
+  --accent-soft: #e9f3ec;
+  --accent-ink: #ffffff;
+  --sage: #74a885;
+  --positive: #1f7a45;
+  --positive-soft: #e6f4ea;
+  --negative: #c2412d;
+  --negative-soft: #fbece8;
+  --warning: #9a6b12;
+  --warning-soft: #fdf4e1;
+
+  /* Charts (dataviz reference hues, re-ordered green-first and validated on these surfaces) */
+  --chart-line: #2d5a3c;
+  --chart-fill: #2d5a3c;
+  --chart-muted: #8f9b94;
+  --chart-grid: #e8eeea;
+  --chart-axis: #8a968f;
+  --series-1: #008300;
+  --series-2: #2a78d6;
+  --series-3: #eb6834;
+  --series-4: #1baf7a;
+  --series-5: #eda100;
+  --series-6: #e87ba4;
+  --series-7: #4a3aa7;
+  --series-8: #e34948;
+  --series-other: #b3bdb6;
+}
+
+.dark {
+  color-scheme: dark;
+  --canvas: #0f1713;
+  --surface: #16221c;
+  --surface-2: #1b2a22;
+  --surface-3: #223429;
+  --line: #233229;
+  --line-strong: #2f4237;
+  --ink: #e9f1eb;
+  --ink-2: #a7b7ad;
+  --ink-3: #74867b;
+  --accent: #74a885;
+  --accent-hover: #86b996;
+  --accent-soft: #1c3226;
+  --accent-ink: #0f1713;
+  --sage: #74a885;
+  --positive: #5fbf84;
+  --positive-soft: #183324;
+  --negative: #f07a65;
+  --negative-soft: #3a1f1a;
+  --warning: #e0a84a;
+  --warning-soft: #33291a;
+
+  --chart-line: #74a885;
+  --chart-fill: #74a885;
+  --chart-muted: #6c7d73;
+  --chart-grid: #213028;
+  --chart-axis: #6f8177;
+  --series-1: #008300;
+  --series-2: #3987e5;
+  --series-3: #d95926;
+  --series-4: #199e70;
+  --series-5: #c98500;
+  --series-6: #d55181;
+  --series-7: #9085e9;
+  --series-8: #e66767;
+  --series-other: #4a5a51;
+}
+
+@theme inline {
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Plus Jakarta Sans Variable', 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
+
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink);
+  --color-sage: var(--sage);
+  --color-positive: var(--positive);
+  --color-positive-soft: var(--positive-soft);
+  --color-negative: var(--negative);
+  --color-negative-soft: var(--negative-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+
+  --shadow-card: 0 1px 2px rgb(15 26 20 / 0.04), 0 1px 1px rgb(15 26 20 / 0.02);
+  --shadow-pop: 0 12px 32px -8px rgb(15 26 20 / 0.18), 0 2px 6px rgb(15 26 20 / 0.06);
+}
+
+@layer base {
+  html,
+  body {
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.015em;
+  }
+
+  ::selection {
+    background: var(--accent-soft);
+    color: var(--ink);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Recharts: keep focus rings off SVG wrappers (the tooltip + table carry keyboard access). */
+.recharts-wrapper:focus,
+.recharts-surface:focus {
+  outline: none;
+}

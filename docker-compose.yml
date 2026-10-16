@@ -1,0 +1,53 @@
+# Jacklyn — one-command stack for a laptop or a Proxmox VM/LXC.
+#
+#   docker compose up -d --build                     # SQLite in a named volume
+#   docker compose --profile postgres up -d --build  # with PostgreSQL (set DATABASE_URL in .env)
+#
+# UI: http://<host>:${JACKLYN_PORT:-8080}   (nginx serves the SPA and proxies /api to the backend)
+
+name: jacklyn
+
+services:
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-sqlite:////app/data/jacklyn.db}
+    volumes:
+      - jacklyn-data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+        required: false
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    ports:
+      - "${JACKLYN_PORT:-8080}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:17-alpine
+    profiles: ["postgres"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-jacklyn}
+      POSTGRES_USER: ${POSTGRES_USER:-jacklyn}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  jacklyn-data:
+  postgres-data:

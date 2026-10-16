@@ -1,0 +1,47 @@
+# Secrets & local config
+.env
+.env.*
+!.env.example
+*.local
+.claude/settings.local.json
+
+# Python (any directory)
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local databases & runtime data
+backend/data/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite3
+
+# Node / builds (any directory)
+node_modules/
+dist/
+dist-ssr/
+build/
+coverage/
+*.tsbuildinfo
+
+# Logs
+*.log
+logs/
+
+# Editors / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini

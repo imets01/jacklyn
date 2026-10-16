@@ -1,0 +1,45 @@
+[project]
+name = "jacklyn-backend"
+version = "0.1.0"
+description = "Jacklyn — self-hosted multi-broker wealth & portfolio tracker (API)"
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["migrations/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "N", "SIM", "RUF", "BLE", "A", "C4", "PT", "PL"]
+ignore = [
+    "PLR0911", "PLR0912", "PLR0913", "PLR0915", "PLR2004",  # parsers branch a lot by design
+    "PLR0917",  # keyword-heavy helpers and FastAPI endpoints
+    "B008",  # FastAPI dependency defaults
+    "RUF001", "RUF002", "RUF003",  # intentional non-ASCII (Hungarian, arrows) in strings/docs
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["PLR2004", "S101"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+files = ["app", "tests"]
+exclude = ["migrations/"]
+
+[[tool.mypy.overrides]]
+module = ["yfinance", "yfinance.*", "xlrd", "xlrd.*", "pandas", "pandas.*"]
+ignore_missing_imports = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = false  # DATABASE_URL alias in Settings
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = [
+    # Starlette 1.x nudges TestClient users towards httpx2; httpx works fine for our tests.
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+]
