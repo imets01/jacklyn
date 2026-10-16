@@ -255,6 +255,7 @@ export interface HistoryResponse {
 export interface TransactionRow {
   id: number
   account_id: number
+  account_name: string
   date: ISODate
   type: TransactionType
   symbol: string | null

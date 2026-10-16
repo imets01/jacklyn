@@ -19,6 +19,7 @@ import { HoldingDetailPage } from './pages/HoldingDetailPage'
 import { ImportPage } from './pages/ImportPage'
 import { NotFound } from './pages/NotFound'
 import { SettingsPage } from './pages/settings/SettingsPage'
+import { TransactionsPage } from './pages/TransactionsPage'
 
 function Splash({ error, onRetry }: { error?: string; onRetry?: () => void }) {
   return (
@@ -83,6 +84,7 @@ export function AuthGate() {
           <Route path="accounts" element={<AccountsPage />} />
           <Route path="accounts/:accountId" element={<AccountDetailPage />} />
           <Route path="holdings/:assetId" element={<HoldingDetailPage />} />
+          <Route path="transactions" element={<TransactionsPage />} />
           <Route path="import" element={<ImportPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="*" element={<NotFound />} />

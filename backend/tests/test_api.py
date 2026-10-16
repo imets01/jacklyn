@@ -1,4 +1,5 @@
 import json
+from collections.abc import Callable
 from decimal import Decimal
 
 from fastapi.testclient import TestClient
@@ -213,3 +214,44 @@ def test_delete_account_removes_its_data_only(client: TestClient) -> None:
     assert client.get(f"/api/accounts/{keep['id']}").json()["transaction_count"] == 1
     # The name is free again.
     assert client.post("/api/accounts", json={"name": "Delete me", "broker": "X", "currency": "EUR"}).status_code == 201
+
+
+def test_transaction_search_filters(client: TestClient, make_user: Callable[..., TestClient]) -> None:
+    account = _create_account(client, name="Filter me", currency="EUR")
+    other = _create_account(client, name="Filter other", currency="EUR")
+    rows = [
+        {"date": "2025-01-02", "type": "deposit", "amount": "1000", "currency": "EUR"},
+        {"date": "2025-01-05", "type": "buy", "symbol": "ZZFLT", "name": "Zeta 100% Fund_A", "quantity": "2",
+         "unit_price": "10", "currency": "EUR"},
+        {"date": "2025-03-01", "type": "dividend", "symbol": "ZZFLT", "amount": "1.5", "currency": "EUR"},
+        {"date": "2025-04-01", "type": "fee", "amount": "2", "currency": "EUR", "description": "Custody fee"},
+    ]  # fmt: skip
+    for target in (account, other):
+        response = client.post(
+            "/api/import/commit", json={"account_id": target["id"], "transactions": rows, "filename": "f.csv"}
+        )
+        assert response.json()["imported"] == 4
+
+    def search(**params: object) -> dict:  # type: ignore[type-arg]
+        response = client.get("/api/transactions", params={"account_id": account["id"], **params})
+        assert response.status_code == 200, response.text
+        return response.json()  # type: ignore[no-any-return]
+
+    everything = search()
+    assert everything["total"] == 4
+    assert [tx["type"] for tx in everything["items"]] == ["fee", "dividend", "buy", "deposit"]  # newest first
+    assert everything["items"][0]["account_name"] == "Filter me"
+    assert search(type=["buy", "dividend"])["total"] == 2
+    assert search(q="zzflt")["total"] == 2
+    assert search(q="custody")["total"] == 1
+    assert search(q="100%")["total"] == 2  # LIKE wildcards are matched literally
+    assert search(q="d_A")["total"] == 2
+    assert search(q="%")["total"] == 2  # not all 4
+    assert search(date_from="2025-02-01", date_to="2025-03-31")["total"] == 1
+    assert search(limit=2, offset=2)["items"][0]["type"] == "buy"
+    both = client.get("/api/transactions", params={"account_id": [account["id"], other["id"]], "q": "zzflt"})
+    assert both.json()["total"] == 4
+    assert client.get("/api/transactions", params={"type": "nonsense"}).status_code == 422
+
+    friend = make_user()
+    assert friend.get("/api/transactions", params={"account_id": account["id"]}).json() == {"total": 0, "items": []}

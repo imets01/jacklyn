@@ -109,6 +109,7 @@ Jacklyn is built to be shared with a few trusted people without exposing your se
 | GET | `/api/assets/{asset_id}/chart?range=1D…MAX` · `/api/assets/{asset_id}/logo` | Price chart (Yahoo, cached in memory) and cached logo |
 | GET/POST | `/api/accounts` · GET/PATCH/DELETE `/api/accounts/{id}` | Accounts with valuation; TBSZ rules enforced |
 | GET | `/api/accounts/{id}/transactions` | Paginated ledger |
+| GET | `/api/transactions?account_id=&type=&asset_id=&q=&date_from=&date_to=` | Ledger across accounts with filters (search matches symbol, name, ISIN, note) |
 | POST | `/api/import/preview` (multipart) | Detect → parse → normalized rows with duplicate flags, or a table preview for the column mapper |
 | POST | `/api/import/commit` | Idempotently store selected `StandardTransaction`s |
 | GET | `/api/import/logs` · `/api/import/parsers` | Import history, available presets |

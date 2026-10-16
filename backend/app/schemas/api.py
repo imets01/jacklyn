@@ -95,6 +95,7 @@ REQUIRED_ACCOUNT_FIELDS = ("name", "broker", "account_type", "currency", "track_
 class TransactionOut(BaseModel):
     id: int
     account_id: int
+    account_name: str
     date: dt.date
     type: TransactionType
     symbol: str | None

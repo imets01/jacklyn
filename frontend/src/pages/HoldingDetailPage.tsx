@@ -102,10 +102,18 @@ function activityTone(type: TransactionType): BadgeTone {
   return 'neutral'
 }
 
-function ActivityCard({ activity }: { activity: HoldingActivity[] }) {
+function ActivityCard({ activity, assetId }: { activity: HoldingActivity[]; assetId: number }) {
   return (
     <Card>
-      <CardHeader title="Your activity" subtitle={`${activity.length} transaction${activity.length === 1 ? '' : 's'}`} />
+      <CardHeader
+        title="Your activity"
+        subtitle={`${activity.length} transaction${activity.length === 1 ? '' : 's'}`}
+        action={
+          <Link to={`/transactions?asset=${assetId}`} className="text-sm font-medium text-accent hover:underline">
+            Filter in Transactions
+          </Link>
+        }
+      />
       <div className="overflow-x-auto pt-2">
         <table className="w-full min-w-[640px] text-sm">
           <thead className="text-left text-xs text-ink-3">
@@ -205,7 +213,7 @@ export function HoldingDetailPage() {
           <AssetInfoCard detail={detail} />
           <AccountsCard detail={detail} />
         </div>
-        <ActivityCard activity={detail.activity} />
+        <ActivityCard activity={detail.activity} assetId={asset.id} />
       </div>
     </>
   )

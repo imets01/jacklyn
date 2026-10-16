@@ -19,6 +19,7 @@ import type {
   PortfolioSummary,
   SavedMapping,
   TransactionPage,
+  TransactionType,
   User,
 } from './types'
 
@@ -31,7 +32,7 @@ export const queryKeys = {
   chart: (assetId: number, range: ChartRange) => ['chart', assetId, range] as const,
   accounts: (base: string) => ['accounts', base] as const,
   account: (base: string, id: number) => ['account', base, id] as const,
-  transactions: (id: number, page: number) => ['transactions', id, page] as const,
+  transactions: (filters: TransactionFilters, page: number) => ['transactions', filters, page] as const,
   importLogs: ['import-logs'] as const,
   mappings: ['mappings'] as const,
 }
@@ -115,11 +116,29 @@ export function useAccount(base: string, id: number) {
   })
 }
 
-export function useTransactions(accountId: number, page: number, pageSize = 50) {
+export interface TransactionFilters {
+  accountId?: number | null
+  assetId?: number | null
+  types?: readonly TransactionType[]
+  search?: string
+  dateFrom?: string
+  dateTo?: string
+}
+
+export function useTransactions(filters: TransactionFilters, page: number, pageSize = 50) {
   return useQuery({
-    queryKey: queryKeys.transactions(accountId, page),
+    queryKey: queryKeys.transactions(filters, page),
     queryFn: () =>
-      api.get<TransactionPage>(`/api/accounts/${accountId}/transactions`, { limit: pageSize, offset: page * pageSize }),
+      api.get<TransactionPage>('/api/transactions', {
+        account_id: filters.accountId ?? null,
+        asset_id: filters.assetId ?? null,
+        type: filters.types?.length ? [...filters.types] : null,
+        q: filters.search || null,
+        date_from: filters.dateFrom || null,
+        date_to: filters.dateTo || null,
+        limit: pageSize,
+        offset: page * pageSize,
+      }),
     placeholderData: keepPreviousData,
   })
 }

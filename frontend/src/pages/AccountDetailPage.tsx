@@ -1,10 +1,8 @@
-import { clsx } from 'clsx'
-import { ArrowLeft, ChevronLeft, ChevronRight, FileUp, Pencil } from 'lucide-react'
+import { ArrowLeft, ChevronRight, Pencil, ReceiptText } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 
-import { useAccount, useHoldings, useTransactions } from '../api/hooks'
-import type { TransactionRow } from '../api/types'
+import { useAccount, useHoldings } from '../api/hooks'
 import { AccountFormModal } from '../components/accounts/AccountFormModal'
 import { AccountTypeBadge, BrokerAvatar, TbszProgress } from '../components/accounts/AccountRow'
 import { DeleteAccountCard } from '../components/accounts/DeleteAccountCard'
@@ -13,7 +11,7 @@ import { CashBreakdown } from '../components/dashboard/CashBreakdown'
 import { NetWorthCard } from '../components/dashboard/NetWorthCard'
 import { PageHeader } from '../components/layout/PageHeader'
 import { Delta } from '../components/ui/Delta'
-import { Badge, Button, Card, CardHeader, EmptyState, Spinner, type BadgeTone } from '../components/ui/primitives'
+import { Button, Card, CardHeader, Spinner } from '../components/ui/primitives'
 import {
   ASSET_CLASS_LABELS,
   formatDate,
@@ -21,19 +19,9 @@ import {
   formatPercent,
   formatPrice,
   formatQuantity,
-  TRANSACTION_TYPE_LABELS,
 } from '../lib/format'
 import { usePreferences } from '../lib/preferences-context'
 import { QueryError } from './QueryError'
-
-const PAGE_SIZE = 50
-
-function typeTone(type: TransactionRow['type']): BadgeTone {
-  if (type === 'buy' || type === 'deposit' || type === 'transfer_in') return 'accent'
-  if (type === 'dividend' || type === 'interest') return 'positive'
-  if (type === 'fee' || type === 'tax') return 'negative'
-  return 'neutral'
-}
 
 function HoldingsTable({ accountId, currency }: { accountId: number; currency: string }) {
   const holdings = useHoldings(currency, accountId)
@@ -104,97 +92,6 @@ function HoldingsTable({ accountId, currency }: { accountId: number; currency: s
         </tbody>
       </table>
     </div>
-  )
-}
-
-function TransactionsTable({ accountId }: { accountId: number }) {
-  const [page, setPage] = useState(0)
-  const transactions = useTransactions(accountId, page, PAGE_SIZE)
-  if (transactions.isLoading) return <Spinner className="m-6" />
-  const data = transactions.data
-  if (!data || data.total === 0) {
-    return (
-      <EmptyState icon={<FileUp className="size-5" />} title="No transactions yet">
-        <Link to="/import" className="font-medium text-accent hover:underline">
-          Import a statement
-        </Link>{' '}
-        to fill this account.
-      </EmptyState>
-    )
-  }
-  const pages = Math.ceil(data.total / PAGE_SIZE)
-  return (
-    <>
-      <div className={clsx('overflow-x-auto transition-opacity', transactions.isPlaceholderData && 'opacity-60')}>
-        <table className="w-full min-w-[760px] text-sm">
-          <thead className="text-left text-xs text-ink-3">
-            <tr>
-              <th className="px-6 py-3 font-medium">Date</th>
-              <th className="px-3 py-3 font-medium">Type</th>
-              <th className="px-3 py-3 font-medium">Asset / description</th>
-              <th className="px-3 py-3 text-right font-medium">Quantity</th>
-              <th className="px-3 py-3 text-right font-medium">Price</th>
-              <th className="px-6 py-3 text-right font-medium">Amount</th>
-            </tr>
-          </thead>
-          <tbody className="tabular">
-            {data.items.map((tx) => (
-              <tr key={tx.id} className="border-t border-line">
-                <td className="whitespace-nowrap px-6 py-3 text-ink-2">{formatDate(tx.date)}</td>
-                <td className="px-3 py-3">
-                  <Badge tone={typeTone(tx.type)}>{TRANSACTION_TYPE_LABELS[tx.type]}</Badge>
-                </td>
-                <td className="max-w-[320px] px-3 py-3">
-                  <p className="truncate text-ink">{tx.symbol ?? tx.description ?? '—'}</p>
-                  {tx.symbol && (tx.name ?? tx.description) ? (
-                    <p className="truncate text-xs text-ink-3">{tx.name ?? tx.description}</p>
-                  ) : null}
-                </td>
-                <td className="px-3 py-3 text-right text-ink-2">{formatQuantity(tx.quantity)}</td>
-                <td className="px-3 py-3 text-right text-ink-2">{tx.unit_price ? formatPrice(tx.unit_price, tx.currency) : '—'}</td>
-                <td className="px-6 py-3 text-right">
-                  <p className="text-ink">{tx.amount ? formatMoney(tx.amount, tx.currency) : '—'}</p>
-                  {Number(tx.fee) || Number(tx.tax) ? (
-                    <p className="text-xs text-ink-3">
-                      {Number(tx.fee) ? `fee ${formatMoney(tx.fee, tx.currency)}` : ''}
-                      {Number(tx.fee) && Number(tx.tax) ? ' · ' : ''}
-                      {Number(tx.tax) ? `tax ${formatMoney(tx.tax, tx.currency)}` : ''}
-                    </p>
-                  ) : null}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {pages > 1 ? (
-        <div className="flex items-center justify-between border-t border-line px-6 py-3 text-sm text-ink-3">
-          <span>
-            {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, data.total)} of {data.total}
-          </span>
-          <div className="flex gap-1">
-            <button
-              type="button"
-              className="grid size-8 place-items-center rounded-full hover:bg-surface-2 disabled:opacity-40"
-              disabled={page === 0}
-              onClick={() => setPage((p) => p - 1)}
-              aria-label="Previous page"
-            >
-              <ChevronLeft className="size-4" />
-            </button>
-            <button
-              type="button"
-              className="grid size-8 place-items-center rounded-full hover:bg-surface-2 disabled:opacity-40"
-              disabled={page + 1 >= pages}
-              onClick={() => setPage((p) => p + 1)}
-              aria-label="Next page"
-            >
-              <ChevronRight className="size-4" />
-            </button>
-          </div>
-        </div>
-      ) : null}
-    </>
   )
 }
 
@@ -288,12 +185,22 @@ export function AccountDetailPage() {
             <HoldingsTable accountId={id} currency={baseCurrency} />
           </div>
         </Card>
-        <Card>
-          <CardHeader title="Transactions" subtitle={`${data.transaction_count} recorded`} />
-          <div className="pt-2">
-            <TransactionsTable accountId={id} />
-          </div>
-        </Card>
+        <Link
+          to={`/transactions?account=${id}`}
+          className="group flex items-center gap-4 rounded-3xl border border-line bg-surface px-6 py-4 shadow-[var(--shadow-card)] transition-colors hover:bg-surface-2"
+        >
+          <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-accent-soft text-accent">
+            <ReceiptText className="size-5" aria-hidden />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[15px] font-semibold text-ink">Transactions</span>
+            <span className="block text-sm text-ink-3">
+              {data.transaction_count} recorded
+              {data.last_transaction_date ? ` · latest ${formatDate(data.last_transaction_date)}` : ''}
+            </span>
+          </span>
+          <ChevronRight className="size-4 shrink-0 text-ink-3 transition-transform group-hover:translate-x-0.5" aria-hidden />
+        </Link>
         <DeleteAccountCard account={data} />
       </div>
     </>

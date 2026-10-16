@@ -1,6 +1,7 @@
 import { clsx } from 'clsx'
-import { FileUp, LayoutDashboard, LogOut, Monitor, Moon, Settings, Sun, Wallet } from 'lucide-react'
-import { Link, NavLink, Outlet } from 'react-router'
+import { FileUp, LayoutDashboard, LogOut, Monitor, Moon, ReceiptText, Settings, Sun, Wallet } from 'lucide-react'
+import { useEffect } from 'react'
+import { Link, NavLink, Outlet, useLocation } from 'react-router'
 
 import { useLogout, useSession } from '../../api/auth'
 
@@ -10,6 +11,7 @@ import { Logo, LogoMark } from '../ui/Logo'
 const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/accounts', label: 'Accounts', icon: Wallet, end: false },
+  { to: '/transactions', label: 'Transactions', icon: ReceiptText, end: false },
   { to: '/import', label: 'Import', icon: FileUp, end: false },
 ] as const
 
@@ -74,7 +76,16 @@ function UserCard() {
   )
 }
 
+/** New pages open at the top; query-string changes (filters, paging) keep the scroll position. */
+function useScrollTopOnNavigate() {
+  const { pathname } = useLocation()
+  useEffect(() => {
+    window.scrollTo({ top: 0 })
+  }, [pathname])
+}
+
 export function AppShell() {
+  useScrollTopOnNavigate()
   return (
     <div className="min-h-dvh bg-canvas">
       {/* Desktop sidebar */}
@@ -126,7 +137,7 @@ export function AppShell() {
       {/* Mobile tab bar */}
       <nav
         aria-label="Main"
-        className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-4 border-t border-line bg-surface/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 backdrop-blur lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t border-line bg-surface/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 backdrop-blur lg:hidden"
       >
         {[...NAV, { to: '/settings', label: 'Settings', icon: Settings, end: false }].map(({ to, label, icon: Icon, end }) => (
           <NavLink
@@ -135,7 +146,7 @@ export function AppShell() {
             end={end}
             className={({ isActive }) =>
               clsx(
-                'flex flex-col items-center gap-1 rounded-xl py-1.5 text-[11px] font-medium',
+                'flex min-w-0 flex-col items-center gap-1 rounded-xl py-1.5 text-[11px] font-medium',
                 isActive ? 'text-accent' : 'text-ink-3',
               )
             }

@@ -1,15 +1,16 @@
 from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, Response, status
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete
 from sqlalchemy.exc import IntegrityError
 
 from app.api.deps import BaseCurrency, CurrentUser, DbSession, get_owned_account
 from app.enums import AccountType
-from app.models import Account, Asset, BrokerCredential, ImportLog, Transaction
-from app.schemas.api import AccountCreate, AccountUpdate, TransactionOut, TransactionPage
+from app.models import Account, BrokerCredential, ImportLog, Transaction
+from app.schemas.api import AccountCreate, AccountUpdate, TransactionPage
 from app.schemas.portfolio import AccountSummary
 from app.services.portfolio import PortfolioEngine
+from app.services.transactions import TransactionFilter, transaction_page
 
 router = APIRouter(prefix="/api/accounts", tags=["accounts"])
 
@@ -99,37 +100,4 @@ def list_transactions(
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> TransactionPage:
     account = get_owned_account(session, user, account_id)
-    scope = (Transaction.user_id == user.id, Transaction.account_id == account.id)
-    total = session.scalar(select(func.count()).select_from(Transaction).where(*scope)) or 0
-    rows = session.execute(
-        select(Transaction, Asset)
-        .outerjoin(Asset, Asset.id == Transaction.asset_id)
-        .where(*scope)
-        .order_by(Transaction.trade_date.desc(), Transaction.id.desc())
-        .limit(limit)
-        .offset(offset)
-    ).all()
-    return TransactionPage(
-        total=total,
-        items=[
-            TransactionOut(
-                id=tx.id,
-                account_id=tx.account_id,
-                date=tx.trade_date,
-                type=tx.type,
-                symbol=asset.symbol if asset else None,
-                name=asset.name if asset else None,
-                isin=asset.isin if asset else None,
-                quantity=tx.quantity,
-                unit_price=tx.unit_price,
-                amount=tx.amount,
-                fee=tx.fee,
-                tax=tx.tax,
-                currency=tx.currency,
-                description=tx.description,
-                external_id=tx.external_id,
-                import_log_id=tx.import_log_id,
-            )
-            for tx, asset in rows
-        ],
-    )
+    return transaction_page(session, user.id, TransactionFilter(account_ids=[account.id]), limit, offset)
