@@ -74,11 +74,14 @@ export function PageHeader({
   subtitle,
   actions,
   showMarket = true,
+  showCurrency = true,
 }: {
   title: ReactNode
   subtitle?: ReactNode
   actions?: ReactNode
   showMarket?: boolean
+  /** Hide on pages that show no base-currency values, where switching would do nothing. */
+  showCurrency?: boolean
 }) {
   return (
     <div className="mb-6 flex flex-col gap-4 lg:mb-8 lg:flex-row lg:items-end lg:justify-between">
@@ -89,7 +92,7 @@ export function PageHeader({
       <div className="flex flex-wrap items-center gap-2">
         {actions}
         {showMarket ? <MarketStatusChip /> : null}
-        <BaseCurrencySwitch />
+        {showCurrency ? <BaseCurrencySwitch /> : null}
       </div>
     </div>
   )

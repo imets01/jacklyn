@@ -142,6 +142,7 @@ export function ImportPage() {
         title="Import"
         subtitle="Statements from any broker become one clean ledger. Re-importing is always safe — duplicates are skipped."
         showMarket={false}
+        showCurrency={false}
       />
 
       <div className="flex flex-col gap-5">

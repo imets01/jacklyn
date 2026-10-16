@@ -107,6 +107,7 @@ export function TransactionsPage() {
     <>
       <PageHeader
         title="Transactions"
+        showCurrency={false}
         subtitle={data ? `${data.total} transaction${data.total === 1 ? '' : 's'}${filtered ? ' match your filters' : ''}` : ' '}
       />
       <div className="flex flex-col gap-4 sm:gap-5">
