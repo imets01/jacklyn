@@ -4,9 +4,10 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from app.enums import AccountType, AssetClass
+from app.enums import AccountType, AssetClass, TransactionType
 
 HistoryRange = Literal["1W", "1M", "3M", "YTD", "1Y", "ALL"]
+ChartRange = Literal["1D", "1W", "1M", "6M", "YTD", "1Y", "5Y", "MAX"]
 
 
 class AllocationSlice(BaseModel):
@@ -98,6 +99,8 @@ class Holding(BaseModel):
     unrealized_pnl_pct: Decimal | None
     day_change: Decimal
     weight: Decimal
+    avg_cost: Decimal | None  # per unit, in the asset's currency, fees included
+    logo_url: str | None
 
 
 class CashBalance(BaseModel):
@@ -106,6 +109,7 @@ class CashBalance(BaseModel):
     currency: str
     amount: Decimal
     value: Decimal
+    logo_url: str | None = None
 
 
 class HoldingsResponse(BaseModel):
@@ -126,4 +130,93 @@ class HistoryResponse(BaseModel):
     range: HistoryRange
     points: list[HistoryPoint]
     change: Decimal
+    change_pct: Decimal | None
+
+
+class AssetProfileOut(BaseModel):
+    quote_type: str | None
+    long_name: str | None
+    provider: str | None
+    sector: str | None
+    industry: str | None
+    description: str | None
+    website: str | None
+    expense_ratio: Decimal | None  # fraction: 0.0007 = 0.07% a year
+    fund_size: Decimal | None
+
+
+class AssetOut(BaseModel):
+    id: int
+    symbol: str
+    name: str | None
+    isin: str | None
+    asset_class: AssetClass
+    currency: str
+    exchange: str | None
+    yf_ticker: str | None
+    logo_url: str | None
+
+
+class HoldingAccount(BaseModel):
+    account_id: int
+    account_name: str
+    broker: str
+    quantity: Decimal
+    value: Decimal
+    cost_basis: Decimal
+    unrealized_pnl: Decimal
+    unrealized_pnl_pct: Decimal | None
+
+
+class HoldingActivity(BaseModel):
+    id: int
+    account_id: int
+    account_name: str
+    date: dt.date
+    type: TransactionType
+    quantity: Decimal | None
+    unit_price: Decimal | None
+    amount: Decimal | None
+    fee: Decimal
+    tax: Decimal
+    currency: str
+
+
+class HoldingDetail(BaseModel):
+    """One asset across all of the user's accounts."""
+
+    base_currency: str
+    as_of: dt.date
+    asset: AssetOut
+    profile: AssetProfileOut | None
+    price: Decimal | None
+    price_date: dt.date | None
+    previous_close: Decimal | None
+    price_change_pct: Decimal | None  # latest close vs the one before, in the asset's currency
+    quantity: Decimal
+    avg_cost: Decimal | None
+    value_local: Decimal
+    value: Decimal
+    cost_basis: Decimal
+    unrealized_pnl: Decimal
+    unrealized_pnl_pct: Decimal | None
+    day_change: Decimal
+    weight: Decimal
+    accounts: list[HoldingAccount]
+    activity: list[HoldingActivity]  # newest first
+
+
+class ChartPoint(BaseModel):
+    time: dt.datetime
+    close: Decimal
+
+
+class ChartResponse(BaseModel):
+    asset_id: int
+    range: ChartRange
+    currency: str
+    intraday: bool
+    source: Literal["yfinance", "stored"]
+    points: list[ChartPoint]
+    change: Decimal | None
     change_pct: Decimal | None

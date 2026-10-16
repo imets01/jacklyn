@@ -29,6 +29,8 @@ export type TransactionType = (typeof TRANSACTION_TYPES)[number]
 
 export type AssetClass = 'stock' | 'etf' | 'fund' | 'bond' | 'crypto' | 'commodity' | 'cash' | 'other'
 export type HistoryRange = '1W' | '1M' | '3M' | 'YTD' | '1Y' | 'ALL'
+export const CHART_RANGES = ['1D', '1W', '1M', '6M', 'YTD', '1Y', '5Y', 'MAX'] as const
+export type ChartRange = (typeof CHART_RANGES)[number]
 
 export interface User {
   id: number
@@ -126,6 +128,98 @@ export interface Holding {
   unrealized_pnl_pct: Ratio | null
   day_change: Money
   weight: Ratio
+  /** Per unit, in the asset's currency, fees included. */
+  avg_cost: string | null
+  logo_url: string | null
+}
+
+export interface AssetProfile {
+  quote_type: string | null
+  long_name: string | null
+  provider: string | null
+  sector: string | null
+  industry: string | null
+  description: string | null
+  website: string | null
+  /** Yearly fee as a fraction: 0.0007 = 0.07%. */
+  expense_ratio: Ratio | null
+  fund_size: Money | null
+}
+
+export interface AssetInfo {
+  id: number
+  symbol: string
+  name: string | null
+  isin: string | null
+  asset_class: AssetClass
+  currency: string
+  exchange: string | null
+  yf_ticker: string | null
+  logo_url: string | null
+}
+
+export interface HoldingAccount {
+  account_id: number
+  account_name: string
+  broker: string
+  quantity: string
+  value: Money
+  cost_basis: Money
+  unrealized_pnl: Money
+  unrealized_pnl_pct: Ratio | null
+}
+
+export interface HoldingActivity {
+  id: number
+  account_id: number
+  account_name: string
+  date: ISODate
+  type: TransactionType
+  quantity: string | null
+  unit_price: string | null
+  amount: Money | null
+  fee: Money
+  tax: Money
+  currency: string
+}
+
+export interface HoldingDetail {
+  base_currency: string
+  as_of: ISODate
+  asset: AssetInfo
+  profile: AssetProfile | null
+  price: string | null
+  price_date: ISODate | null
+  previous_close: string | null
+  price_change_pct: Ratio | null
+  quantity: string
+  avg_cost: string | null
+  value_local: Money
+  value: Money
+  cost_basis: Money
+  unrealized_pnl: Money
+  unrealized_pnl_pct: Ratio | null
+  day_change: Money
+  weight: Ratio
+  accounts: HoldingAccount[]
+  /** Newest first. */
+  activity: HoldingActivity[]
+}
+
+export interface ChartPoint {
+  time: ISODateTime
+  close: string
+}
+
+export interface ChartResponse {
+  asset_id: number
+  range: ChartRange
+  currency: string
+  intraday: boolean
+  source: 'yfinance' | 'stored'
+  points: ChartPoint[]
+  change: string | null
+  change_pct: Ratio | null
 }
 
 export interface CashBalance {
@@ -134,6 +228,7 @@ export interface CashBalance {
   currency: string
   amount: Money
   value: Money
+  logo_url: string | null
 }
 
 export interface HoldingsResponse {

@@ -15,6 +15,7 @@ import { InvitePage, ResetPage } from './pages/auth/LinkPages'
 import { LoginPage } from './pages/auth/LoginPage'
 import { SetupPage } from './pages/auth/SetupPage'
 import { DashboardPage } from './pages/DashboardPage'
+import { HoldingDetailPage } from './pages/HoldingDetailPage'
 import { ImportPage } from './pages/ImportPage'
 import { NotFound } from './pages/NotFound'
 import { SettingsPage } from './pages/settings/SettingsPage'
@@ -81,6 +82,7 @@ export function AuthGate() {
           <Route index element={<DashboardPage />} />
           <Route path="accounts" element={<AccountsPage />} />
           <Route path="accounts/:accountId" element={<AccountDetailPage />} />
+          <Route path="holdings/:assetId" element={<HoldingDetailPage />} />
           <Route path="import" element={<ImportPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="*" element={<NotFound />} />

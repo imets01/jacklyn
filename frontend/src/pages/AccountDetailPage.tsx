@@ -1,17 +1,20 @@
 import { clsx } from 'clsx'
-import { ArrowLeft, ChevronLeft, ChevronRight, FileUp } from 'lucide-react'
+import { ArrowLeft, ChevronLeft, ChevronRight, FileUp, Pencil } from 'lucide-react'
 import { useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { Link, useNavigate, useParams } from 'react-router'
 
 import { useAccount, useHoldings, useTransactions } from '../api/hooks'
 import type { TransactionRow } from '../api/types'
+import { AccountFormModal } from '../components/accounts/AccountFormModal'
 import { AccountTypeBadge, BrokerAvatar, TbszProgress } from '../components/accounts/AccountRow'
 import { DeleteAccountCard } from '../components/accounts/DeleteAccountCard'
+import { AssetIcon, CurrencyIcon } from '../components/assets/AssetIcon'
 import { NetWorthCard } from '../components/dashboard/NetWorthCard'
 import { PageHeader } from '../components/layout/PageHeader'
 import { Delta } from '../components/ui/Delta'
-import { Badge, Card, CardHeader, EmptyState, Spinner, type BadgeTone } from '../components/ui/primitives'
+import { Badge, Button, Card, CardHeader, EmptyState, Spinner, type BadgeTone } from '../components/ui/primitives'
 import {
+  ASSET_CLASS_LABELS,
   formatDate,
   formatMoney,
   formatPercent,
@@ -33,6 +36,7 @@ function typeTone(type: TransactionRow['type']): BadgeTone {
 
 function HoldingsTable({ accountId, currency }: { accountId: number; currency: string }) {
   const holdings = useHoldings(currency, accountId)
+  const navigate = useNavigate()
   if (holdings.isLoading) return <Spinner className="m-6" />
   const data = holdings.data
   if (!data || (data.holdings.length === 0 && data.cash.length === 0)) {
@@ -53,10 +57,31 @@ function HoldingsTable({ accountId, currency }: { accountId: number; currency: s
         </thead>
         <tbody className="tabular">
           {data.holdings.map((holding) => (
-            <tr key={holding.asset_id} className="border-t border-line">
+            <tr
+              key={holding.asset_id}
+              className="cursor-pointer border-t border-line transition-colors hover:bg-surface-2"
+              onClick={() => void navigate(`/holdings/${holding.asset_id}`)}
+            >
               <td className="px-6 py-3">
-                <p className="font-semibold text-ink">{holding.symbol}</p>
-                <p className="max-w-[260px] truncate text-xs text-ink-3">{holding.name ?? holding.isin ?? holding.asset_class}</p>
+                <Link
+                  to={`/holdings/${holding.asset_id}`}
+                  className="flex items-center gap-3"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <AssetIcon
+                    symbol={holding.symbol}
+                    name={holding.name}
+                    assetClass={holding.asset_class}
+                    logoUrl={holding.logo_url}
+                    size="sm"
+                  />
+                  <span className="min-w-0">
+                    <span className="block font-semibold text-ink">{holding.symbol}</span>
+                    <span className="block max-w-[240px] truncate text-xs text-ink-3">
+                      {holding.name ?? holding.isin ?? ASSET_CLASS_LABELS[holding.asset_class]}
+                    </span>
+                  </span>
+                </Link>
               </td>
               <td className="px-3 py-3 text-right text-ink-2">{formatQuantity(holding.quantity)}</td>
               <td className="px-3 py-3 text-right text-ink-2">
@@ -78,8 +103,13 @@ function HoldingsTable({ accountId, currency }: { accountId: number; currency: s
           {data.cash.map((cash) => (
             <tr key={cash.currency} className="border-t border-line">
               <td className="px-6 py-3">
-                <p className="font-semibold text-ink">Cash {cash.currency}</p>
-                <p className="text-xs text-ink-3">Settled balance</p>
+                <span className="flex items-center gap-3">
+                  <CurrencyIcon currency={cash.currency} logoUrl={cash.logo_url} size="sm" />
+                  <span>
+                    <span className="block font-semibold text-ink">Cash {cash.currency}</span>
+                    <span className="block text-xs text-ink-3">Settled balance</span>
+                  </span>
+                </span>
               </td>
               <td className="px-3 py-3 text-right text-ink-2" colSpan={2}>
                 {formatMoney(cash.amount, cash.currency)}
@@ -190,6 +220,7 @@ export function AccountDetailPage() {
   const id = Number(accountId)
   const { baseCurrency } = usePreferences()
   const account = useAccount(baseCurrency, id)
+  const [editing, setEditing] = useState(false)
 
   if (account.isLoading) {
     return (
@@ -220,7 +251,13 @@ export function AccountDetailPage() {
           </span>
         }
         subtitle={`${data.broker} · ${data.currency} account${data.external_account_id ? ` · ${data.external_account_id}` : ''}`}
+        actions={
+          <Button size="sm" onClick={() => setEditing(true)}>
+            <Pencil className="size-3.5" aria-hidden /> Edit
+          </Button>
+        }
       />
+      <AccountFormModal open={editing} onClose={() => setEditing(false)} account={data} />
       <div className="flex flex-col gap-5">
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_280px]">
           <NetWorthCard

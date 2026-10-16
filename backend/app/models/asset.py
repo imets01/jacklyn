@@ -1,7 +1,7 @@
 import datetime as dt
 from decimal import Decimal
 
-from sqlalchemy import Date, ForeignKey, String, UniqueConstraint
+from sqlalchemy import Date, ForeignKey, LargeBinary, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
@@ -57,4 +57,36 @@ class FxRate(Base):
     rate_date: Mapped[dt.date] = mapped_column(Date)
     rate: Mapped[Decimal] = mapped_column(DecimalType(28, 12))
     source: Mapped[PriceSource] = mapped_column(enum_column(PriceSource))
+    fetched_at: Mapped[dt.datetime] = mapped_column(default=utcnow)
+
+
+class AssetProfile(Base):
+    """Descriptive reference data from the market data provider; any field may be missing."""
+
+    __tablename__ = "asset_profiles"
+
+    asset_id: Mapped[int] = mapped_column(ForeignKey("assets.id", ondelete="CASCADE"), primary_key=True)
+    quote_type: Mapped[str | None] = mapped_column(String(32))  # Yahoo's ETF / EQUITY / CRYPTOCURRENCY / ...
+    long_name: Mapped[str | None] = mapped_column(String(200))
+    provider: Mapped[str | None] = mapped_column(String(80))  # fund issuer brand, e.g. "iShares"
+    sector: Mapped[str | None] = mapped_column(String(120))
+    industry: Mapped[str | None] = mapped_column(String(120))
+    description: Mapped[str | None] = mapped_column(Text)
+    website: Mapped[str | None] = mapped_column(String(200))
+    expense_ratio: Mapped[Decimal | None]  # TER as a fraction: 0.0007 = 0.07% a year
+    fund_size: Mapped[Decimal | None]  # total assets, in the listing currency
+    # Shared key into asset_logos ("domain:ishares.com", "crypto:btc"), so one issuer's funds share a logo.
+    logo_key: Mapped[str | None] = mapped_column(String(120))
+    fetched_at: Mapped[dt.datetime] = mapped_column(default=utcnow)
+
+
+class AssetLogo(Base):
+    """Cached logo image. A row without data records a miss, so the source isn't asked again for a while."""
+
+    __tablename__ = "asset_logos"
+
+    key: Mapped[str] = mapped_column(String(120), primary_key=True)
+    content_type: Mapped[str | None] = mapped_column(String(32))
+    data: Mapped[bytes | None] = mapped_column(LargeBinary)
+    source: Mapped[str | None] = mapped_column(String(32))
     fetched_at: Mapped[dt.datetime] = mapped_column(default=utcnow)

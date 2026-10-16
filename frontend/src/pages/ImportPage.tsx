@@ -4,7 +4,7 @@ import { Link } from 'react-router'
 
 import { useAccounts, useCommitImport, usePreviewImport, useSaveMapping } from '../api/hooks'
 import type { ColumnMappingConfig, ImportCommitResult, ImportPreview, TablePreview } from '../api/types'
-import { NewAccountModal } from '../components/accounts/NewAccountModal'
+import { AccountFormModal } from '../components/accounts/AccountFormModal'
 import { ColumnMapperModal, type MapperApply } from '../components/importer/ColumnMapperModal'
 import { DropZone } from '../components/importer/DropZone'
 import { ImportHistory, SavedPresets, SupportedFormats } from '../components/importer/ImportSidebar'
@@ -236,11 +236,11 @@ export function ImportPage() {
           onReloadTable={reloadTable}
         />
       ) : null}
-      <NewAccountModal
+      <AccountFormModal
         open={newAccountOpen}
         onClose={() => setNewAccountOpen(false)}
         defaultBroker={preview?.account_hint?.broker ?? preview?.detection?.broker ?? null}
-        onCreated={(account) => onAccountChange(account.id)}
+        onSaved={(account) => onAccountChange(account.id)}
       />
     </>
   )

@@ -5,7 +5,7 @@ import { Link, useSearchParams } from 'react-router'
 import { useAccounts } from '../api/hooks'
 import type { AccountSummary } from '../api/types'
 import { AccountTypeBadge, BrokerAvatar, TbszProgress } from '../components/accounts/AccountRow'
-import { NewAccountModal } from '../components/accounts/NewAccountModal'
+import { AccountFormModal } from '../components/accounts/AccountFormModal'
 import { PageHeader } from '../components/layout/PageHeader'
 import { Delta } from '../components/ui/Delta'
 import { Button, Card, EmptyState, Spinner } from '../components/ui/primitives'
@@ -107,7 +107,7 @@ export function AccountsPage() {
           ))}
         </div>
       )}
-      <NewAccountModal open={modalOpen} onClose={() => setParams({})} />
+      <AccountFormModal open={modalOpen} onClose={() => setParams({})} />
     </>
   )
 }

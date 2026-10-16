@@ -38,6 +38,13 @@ export function SettingsPage() {
           <SessionsCard />
         </section>
         {me.is_admin ? <PeopleSection me={me} /> : null}
+        <p className="text-xs text-ink-3">
+          Market data from Yahoo Finance. Stock, fund, commodity and currency logos by{' '}
+          <a href="https://elbstream.com" target="_blank" rel="noreferrer noopener" className="text-accent hover:underline">
+            Elbstream
+          </a>
+          ; logos are trademarks of their owners.
+        </p>
       </div>
     </>
   )

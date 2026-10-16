@@ -13,6 +13,13 @@ _FUND_HINTS = re.compile(
 )
 # Where a bare symbol in a given currency most likely trades on Yahoo Finance.
 _CURRENCY_SUFFIX = {"USD": "", "CHF": ".SW", "HUF": ".BD", "GBP": ".L"}
+# US share classes: brokers write BRK.B / BF.B, Yahoo wants BRK-B / BF-B. ".L" is London, not a class.
+_US_SHARE_CLASS = re.compile(r"([A-Z]{1,5})\.([A-KM-Z])")
+
+
+def us_share_class(symbol: str) -> str:
+    match = _US_SHARE_CLASS.fullmatch(symbol)
+    return f"{match[1]}-{match[2]}" if match else symbol
 
 
 def guess_asset_class(transaction: StandardTransaction) -> AssetClass:
@@ -27,7 +34,11 @@ def guess_yf_ticker(symbol: str | None, currency: str, exchange: str | None) -> 
     if exchange and (ticker := yahoo_ticker(symbol, exchange)):
         return ticker
     suffix = _CURRENCY_SUFFIX.get(currency)
-    return None if suffix is None else f"{symbol}{suffix}"
+    if suffix is None:
+        return None
+    if currency == "USD":
+        symbol = us_share_class(symbol)
+    return f"{symbol}{suffix}"
 
 
 class AssetResolver:

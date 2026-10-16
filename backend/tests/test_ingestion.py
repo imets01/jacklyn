@@ -9,6 +9,7 @@ from app.models import Account, Asset, Transaction, User
 from app.parsers import SourceFile
 from app.parsers.ibkr import IBKRActivityCSVParser
 from app.schemas.standard import StandardTransaction
+from app.services.assets import guess_yf_ticker
 from app.services.ingestion import find_duplicates, ingest_transactions
 from tests.conftest import fixture_bytes
 
@@ -77,6 +78,15 @@ def test_assets_are_shared_and_resolved_by_listing(db: Session, user: User, acco
     stored = db.scalar(select(Transaction).where(Transaction.type == TransactionType.DIVIDEND))
     assert stored is not None
     assert stored.asset_id == assets[0].id
+
+
+def test_guess_yf_ticker_uses_yahoo_symbols() -> None:
+    assert guess_yf_ticker("AAPL", "USD", None) == "AAPL"
+    assert guess_yf_ticker("BRK.B", "USD", None) == "BRK-B"  # US share classes take a dash on Yahoo
+    assert guess_yf_ticker("BF.B", "USD", None) == "BF-B"
+    assert guess_yf_ticker("VOD.L", "USD", None) == "VOD.L"  # a London suffix, not a share class
+    assert guess_yf_ticker("NESN", "CHF", None) == "NESN.SW"
+    assert guess_yf_ticker("BRK.B", "EUR", None) is None
 
 
 def test_decimals_round_trip_exactly(db: Session, user: User, account: Account) -> None:

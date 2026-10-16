@@ -61,15 +61,22 @@ export function SegmentedControl<T extends string>({
   onChange,
   label,
   size = 'md',
+  fill = false,
 }: {
   options: readonly { value: T; label: ReactNode; title?: string }[]
   value: T
   onChange: (value: T) => void
   label: string
   size?: 'sm' | 'md'
+  /** Stretch to the container width on phones, sharing it equally between options. */
+  fill?: boolean
 }) {
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex rounded-full bg-surface-2 p-1">
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className={clsx('rounded-full bg-surface-2 p-1', fill ? 'flex w-full sm:inline-flex sm:w-auto' : 'inline-flex')}
+    >
       {options.map((option) => {
         const active = option.value === value
         return (
@@ -83,6 +90,7 @@ export function SegmentedControl<T extends string>({
             className={clsx(
               'inline-flex items-center justify-center gap-1.5 rounded-full font-medium transition-all',
               size === 'sm' ? 'h-7 px-2.5 text-xs' : 'h-8 px-3.5 text-[13px]',
+              fill && 'min-w-0 flex-1 px-0 sm:flex-none sm:px-2.5',
               active ? 'bg-surface text-ink shadow-[var(--shadow-card)]' : 'text-ink-3 hover:text-ink',
             )}
           >

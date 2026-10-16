@@ -76,7 +76,20 @@ class AccountUpdate(BaseModel):
     @field_validator("currency")
     @classmethod
     def _currency_code(cls, value: str | None) -> str | None:
-        return _currency(value) if value else None
+        return None if value is None else _currency(value)
+
+    @model_validator(mode="after")
+    def _required_stay_set(self) -> Self:
+        # Omitting a field leaves it alone; explicitly clearing a required one is an error.
+        cleared = [
+            name for name in REQUIRED_ACCOUNT_FIELDS if name in self.model_fields_set and getattr(self, name) is None
+        ]
+        if cleared:
+            raise ValueError(f"{', '.join(cleared)} cannot be empty.")
+        return self
+
+
+REQUIRED_ACCOUNT_FIELDS = ("name", "broker", "account_type", "currency", "track_cash", "is_archived")
 
 
 class TransactionOut(BaseModel):

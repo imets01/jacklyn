@@ -166,3 +166,14 @@ export const ACCOUNT_TYPE_LABELS: Record<string, string> = {
   crypto: 'Crypto',
   other: 'Other',
 }
+
+export const ASSET_CLASS_LABELS: Record<string, string> = {
+  stock: 'Stock',
+  etf: 'ETF',
+  fund: 'Fund',
+  bond: 'Bond',
+  crypto: 'Crypto',
+  commodity: 'Commodity',
+  cash: 'Cash',
+  other: 'Other',
+}

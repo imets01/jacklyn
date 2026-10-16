@@ -1,4 +1,5 @@
 import logging
+import re
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from urllib.parse import urlsplit
@@ -19,6 +20,7 @@ from app.services.market_data import MarketDataService
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 CSRF_HEADER = "x-jacklyn-request"
+CACHEABLE_API = re.compile(r"/api/(assets/\d+|currencies/[A-Z]{3})/logo")
 UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
@@ -69,8 +71,9 @@ def create_app() -> FastAPI:
         response = await call_next(request)
         for name, value in SECURITY_HEADERS.items():
             response.headers.setdefault(name, value)
-        if is_api:
-            response.headers["Cache-Control"] = "no-store"  # financial data never sits in a cache
+        # Financial data never sits in a cache; versioned logo images are the one exception.
+        if is_api and not (response.status_code == 200 and CACHEABLE_API.fullmatch(request.url.path)):
+            response.headers["Cache-Control"] = "no-store"
         return response
 
     app.include_router(api_router)

@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     # Live market data (yfinance). Disable for offline use or tests.
     live_market_data: bool = True
     market_data_ttl_seconds: int = 900
+    # Optional free token from logo.dev for sharper company/issuer logos; without it, site icons are used.
+    logo_dev_token: str | None = None
 
     max_upload_mb: int = 20
 

@@ -8,6 +8,7 @@ import datetime as dt
 import logging
 import math
 import threading
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any, TypedDict
@@ -17,7 +18,15 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import Settings, get_settings
 from app.enums import PriceSource
-from app.models import Account, Asset, AssetPrice, FxRate, Transaction, User
+from app.models import Account, Asset, AssetPrice, AssetProfile, FxRate, Transaction, User
+from app.services.asset_info import (
+    logo_candidates,
+    profile_is_stale,
+    refresh_logos,
+    refresh_profile,
+    resolve_logos,
+)
+from app.services.assets import us_share_class
 
 logger = logging.getLogger(__name__)
 PRICE_QUANTUM = Decimal("0.000001")
@@ -37,6 +46,8 @@ class RefreshReport:
     assets_updated: int = 0
     fx_pairs_updated: int = 0
     rows_written: int = 0
+    profiles_updated: int = 0
+    logos_fetched: int = 0
     errors: list[str] = field(default_factory=list)
 
 
@@ -51,16 +62,20 @@ def _to_decimal(value: Any, quantum: Decimal) -> Decimal | None:
     return Decimal(repr(number)).quantize(quantum)
 
 
-def _download_closes(tickers: list[str], start: dt.date) -> dict[str, dict[dt.date, Any]]:
-    """{ticker: {date: close}} using one batched yfinance request."""
-    import yfinance as yf  # noqa: PLC0415 - lazy: pulls in pandas, keeps API startup fast
+def load_yfinance() -> Any:
+    """Import yfinance lazily (it pulls in pandas) with its cache on the data volume."""
+    import yfinance as yf  # noqa: PLC0415 - lazy: keeps API startup fast
 
     # Keep yfinance's cache on the data volume so the container filesystem can stay read-only.
     cache_dir = get_settings().data_dir / "yf-cache"
     cache_dir.mkdir(parents=True, exist_ok=True)
     yf.set_tz_cache_location(str(cache_dir))
+    return yf
 
-    frame = yf.download(
+
+def _download_closes(tickers: list[str], start: dt.date) -> dict[str, dict[dt.date, Any]]:
+    """{ticker: {date: close}} using one batched yfinance request."""
+    frame = load_yfinance().download(
         tickers,
         start=start.isoformat(),
         interval="1d",
@@ -132,6 +147,9 @@ class MarketDataService:
                 self._refresh_assets(session, report)
                 self._refresh_fx(session, report)
                 session.commit()
+                # Profiles and logos are slower and purely cosmetic: prices are already saved.
+                self._refresh_profiles(session, report)
+                session.commit()
             self.last_error = "; ".join(report.errors) or None
         except Exception as exc:  # noqa: BLE001 - network/provider errors must not crash the API
             logger.warning("Market data refresh failed: %s", exc)
@@ -146,34 +164,61 @@ class MarketDataService:
 
     def _refresh_assets(self, session: Session, report: RefreshReport) -> None:
         self._resolve_missing_tickers(session)
-        rows = session.execute(
+        silent = self._download_prices(session, report)
+        # A ticker that has never returned a quote is most likely wrong (BRK.B where Yahoo wants BRK-B,
+        # or a London USD line stored as a bare US symbol), so look for another listing right away.
+        # Only when Yahoo answered for other assets: an outage must not send every holding to a lookup.
+        if silent and report.assets_updated and (fixed := self._resolve_missing_tickers(session, retry=silent)):
+            self._download_prices(session, report, only=fixed)
+
+    def _download_prices(
+        self, session: Session, report: RefreshReport, only: Collection[int] | None = None
+    ) -> set[int]:
+        """Fetch quotes for held assets; returns the ids of those whose ticker has never returned any."""
+        query = (
             select(Asset, func.min(Transaction.trade_date))
             .join(Transaction, Transaction.asset_id == Asset.id)
             .where(Asset.yf_ticker.is_not(None))
             .group_by(Asset.id)
-        ).all()
-        if not rows:
-            return
+        )
+        if only is not None:
+            query = query.where(Asset.id.in_(only))
         plans: dict[str, tuple[Asset, dt.date]] = {}
-        for asset, first_trade in rows:
+        for asset, first_trade in session.execute(query).all():
             start = self._asset_start(session, asset, first_trade)
             if asset.yf_ticker:
                 plans[asset.yf_ticker] = (asset, start)
+        silent: set[int] = set()
         for start, tickers in _group_by_start({t: s for t, (_, s) in plans.items()}).items():
             try:
                 closes = _download_closes(tickers, start)
             except Exception as exc:  # noqa: BLE001
                 report.errors.append(f"prices: {exc}")
                 continue
-            for ticker, series in closes.items():
+            for ticker in tickers:
                 asset = plans[ticker][0]
+                series = closes.get(ticker, {})
                 points = {d: p for d, raw in series.items() if (p := _to_decimal(raw, PRICE_QUANTUM)) is not None}
                 if points:
                     report.rows_written += _upsert_prices(session, asset.id, points)
                     report.assets_updated += 1
+                else:
+                    silent.add(asset.id)
+        if silent:  # a ticker that worked before may just be delisted: keep its history and stop there
+            silent -= set(
+                session.scalars(
+                    select(AssetPrice.asset_id).where(
+                        AssetPrice.asset_id.in_(silent), AssetPrice.source == PriceSource.YFINANCE
+                    )
+                )
+            )
+        return silent
 
-    def _resolve_missing_tickers(self, session: Session) -> None:
-        """Find a Yahoo listing for held assets that have none."""
+    def _resolve_missing_tickers(self, session: Session, retry: Collection[int] = ()) -> list[int]:
+        """Find a Yahoo listing for held assets that have none, or whose ticker is in `retry`.
+
+        Each asset is looked up at most once per process. Returns the ids whose ticker changed.
+        """
         last_trade = (
             select(Transaction.asset_id, func.max(Transaction.trade_date).label("last"))
             .where(Transaction.unit_price.is_not(None))
@@ -187,19 +232,53 @@ class MarketDataService:
                 Transaction,
                 (Transaction.asset_id == Asset.id) & (Transaction.trade_date == last_trade.c.last),
             )
-            .where(Asset.yf_ticker.is_(None))
+            .where(Asset.yf_ticker.is_(None) | Asset.id.in_(retry))
         ).all()
         seen: set[int] = set()
+        changed: list[int] = []
         for asset, reference_price in rows:
             if asset.id in seen or asset.id in self._lookup_attempted or reference_price is None:
                 continue
             seen.add(asset.id)
             self._lookup_attempted.add(asset.id)
-            ticker = find_listing(asset.symbol, asset.currency, reference_price)
+            ticker = find_listing(asset.symbol, asset.currency, reference_price, exclude=asset.yf_ticker)
             if ticker:
                 logger.info("Matched %s (%s) to Yahoo listing %s", asset.symbol, asset.currency, ticker)
                 asset.yf_ticker = ticker
+                changed.append(asset.id)
+                # The profile was looked up under the old ticker (or none): fetch it again.
+                if (profile := session.get(AssetProfile, asset.id)) is not None:
+                    session.delete(profile)
         session.flush()
+        return changed
+
+    def _refresh_profiles(self, session: Session, report: RefreshReport, *, limit: int = 25) -> None:
+        """Fund issuer, TER, sector and the logo key for held assets, then any logos still missing."""
+        now = dt.datetime.now(dt.UTC)
+        held = session.scalars(
+            select(Asset).where(Asset.id.in_(select(Transaction.asset_id).where(Transaction.asset_id.is_not(None))))
+        ).all()
+        profiles = {p.asset_id: p for p in session.scalars(select(AssetProfile))}
+        stale = [asset for asset in held if profile_is_stale(profiles.get(asset.id), now)]
+        for asset in stale[:limit]:
+            profiles[asset.id] = refresh_profile(session, asset, use_network=True)
+            report.profiles_updated += 1
+        session.flush()
+        held_by_id = {asset.id: asset for asset in held}
+        candidates = {
+            asset_id: logo_candidates(held_by_id[asset_id], profile)
+            for asset_id, profile in profiles.items()
+            if asset_id in held_by_id
+        }
+        currencies = set(session.scalars(select(Transaction.currency).distinct()))
+        try:
+            chosen, stored = resolve_logos(session, candidates, self._settings.logo_dev_token)
+            for asset_id, key in chosen.items():
+                profiles[asset_id].logo_key = key
+            stored += refresh_logos(session, {f"currency:{code}" for code in currencies}, None)
+            report.logos_fetched += stored
+        except Exception as exc:  # noqa: BLE001 - logos are optional
+            report.errors.append(f"logos: {exc}")
 
     @staticmethod
     def _asset_start(session: Session, asset: Asset, first_trade: dt.date) -> dt.date:
@@ -303,21 +382,27 @@ def _upsert_fx(session: Session, currency: str, points: dict[dt.date, Decimal]) 
 # return a different-currency listing (e.g. London USD), so we probe by symbol and verify instead.
 LISTING_SUFFIXES: dict[str, tuple[str, ...]] = {
     "EUR": (".DE", ".AS", ".PA", ".MI", ".F", ".BR", ".MC", ".VI"),
-    "USD": ("",),
+    "USD": ("", ".L"),  # US listings first, then London's USD lines (e.g. iShares sector ETFs)
     "CHF": (".SW",),
     "GBP": (".L",),
     "HUF": (".BD",),
 }
 
 
-def find_listing(symbol: str, currency: str, reference_price: Decimal) -> str | None:
-    """First listing whose currency matches and whose price is plausible versus the last trade price."""
-    import yfinance as yf  # noqa: PLC0415 - lazy: heavy import
+def find_listing(symbol: str, currency: str, reference_price: Decimal, *, exclude: str | None = None) -> str | None:
+    """First listing whose currency matches and whose price is plausible versus the last trade price.
 
+    `exclude` is a ticker already known not to work, such as a stored one that never returned quotes.
+    """
+    yf = load_yfinance()
     if not symbol.replace(".", "").replace("-", "").isalnum() or len(symbol) > 12:
         return None
+    if currency == "USD":
+        symbol = us_share_class(symbol)
     for suffix in LISTING_SUFFIXES.get(currency, ()):
         ticker = f"{symbol}{suffix}"
+        if ticker == exclude:
+            continue
         try:
             info = yf.Ticker(ticker).fast_info
             listed_currency = info.get("currency")

@@ -4,9 +4,12 @@ import { api } from './client'
 import type {
   AccountCreate,
   AccountSummary,
+  ChartRange,
+  ChartResponse,
   ColumnMappingConfig,
   HistoryRange,
   HistoryResponse,
+  HoldingDetail,
   HoldingsResponse,
   ImportCommitRequest,
   ImportCommitResult,
@@ -24,6 +27,8 @@ export const queryKeys = {
   summary: (base: string) => ['summary', base] as const,
   history: (base: string, range: HistoryRange, accountId?: number) => ['history', base, range, accountId ?? 'all'] as const,
   holdings: (base: string, accountId?: number) => ['holdings', base, accountId ?? 'all'] as const,
+  holding: (base: string, assetId: number) => ['holding', base, assetId] as const,
+  chart: (assetId: number, range: ChartRange) => ['chart', assetId, range] as const,
   accounts: (base: string) => ['accounts', base] as const,
   account: (base: string, id: number) => ['account', base, id] as const,
   transactions: (id: number, page: number) => ['transactions', id, page] as const,
@@ -32,7 +37,7 @@ export const queryKeys = {
 }
 
 /** Everything that depends on ledger contents; invalidated after an import or account change. */
-const LEDGER_KEYS = ['summary', 'history', 'holdings', 'accounts', 'account', 'transactions', 'import-logs']
+const LEDGER_KEYS = ['summary', 'history', 'holdings', 'holding', 'accounts', 'account', 'transactions', 'import-logs']
 
 export function useMe() {
   return useQuery({ queryKey: queryKeys.me, queryFn: () => api.get<User>('/api/me') })
@@ -76,6 +81,24 @@ export function useHoldings(base: string, accountId?: number) {
   })
 }
 
+export function useHoldingDetail(base: string, assetId: number) {
+  return useQuery({
+    queryKey: queryKeys.holding(base, assetId),
+    queryFn: () => api.get<HoldingDetail>(`/api/portfolio/holdings/${assetId}`, { base }),
+    placeholderData: keepPreviousData,
+  })
+}
+
+export function useAssetChart(assetId: number, range: ChartRange) {
+  return useQuery({
+    queryKey: queryKeys.chart(assetId, range),
+    queryFn: () => api.get<ChartResponse>(`/api/assets/${assetId}/chart`, { range }),
+    placeholderData: keepPreviousData,
+    // The server caches Yahoo for 2 minutes (1D) to an hour; match it so switching ranges is instant.
+    staleTime: range === '1D' ? 120_000 : 600_000,
+  })
+}
+
 export function useAccounts(base: string) {
   return useQuery({
     queryKey: queryKeys.accounts(base),
@@ -109,6 +132,15 @@ export function useCreateAccount() {
   const client = useQueryClient()
   return useMutation({
     mutationFn: (payload: AccountCreate) => api.post<AccountSummary>('/api/accounts', payload),
+    onSuccess: () => invalidateLedger(client),
+  })
+}
+
+export function useUpdateAccount() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: number; patch: Partial<AccountCreate> }) =>
+      api.patch<AccountSummary>(`/api/accounts/${id}`, patch),
     onSuccess: () => invalidateLedger(client),
   })
 }

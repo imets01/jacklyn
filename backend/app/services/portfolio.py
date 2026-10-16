@@ -7,7 +7,7 @@ currency at each transaction's own date, so P&L includes currency effects on pos
 import datetime as dt
 import math
 from collections import defaultdict
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass, field
 from decimal import ROUND_HALF_EVEN, Decimal
 
@@ -15,16 +15,21 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.enums import AccountType, AssetClass, PriceSource, TransactionType
-from app.models import Account, Asset, AssetPrice, Transaction
+from app.models import Account, Asset, AssetLogo, AssetPrice, AssetProfile, Transaction
 from app.schemas.portfolio import (
     AccountSummary,
     Allocations,
     AllocationSlice,
+    AssetOut,
+    AssetProfileOut,
     CashBalance,
     HistoryPoint,
     HistoryRange,
     HistoryResponse,
     Holding,
+    HoldingAccount,
+    HoldingActivity,
+    HoldingDetail,
     HoldingsResponse,
     MarketStatus,
     PortfolioSummary,
@@ -63,6 +68,7 @@ def ratio(numerator: Decimal, denominator: Decimal) -> Decimal | None:
 class Position:
     quantity: Decimal = ZERO
     cost_base: Decimal = ZERO  # average-cost basis in base currency, fees included
+    cost_local: Decimal = ZERO  # the same basis in the asset's own currency, for an average buy price
 
 
 @dataclass
@@ -158,6 +164,7 @@ class PortfolioEngine:
         )
         self.fx = FxTable.load(session)
         self.warnings: set[str] = set()
+        self.session = session
 
     # ------------------------------------------------------------------ ledger replay
 
@@ -167,6 +174,11 @@ class PortfolioEngine:
             self.warnings.add(f"No FX rate for {currency}→{self.base}; {currency} amounts are excluded.")
             return ZERO
         return converted
+
+    def _convert(self, amount: Decimal, currency: str, target: str, on: dt.date) -> Decimal:
+        if currency == target:
+            return amount
+        return self.fx.convert(amount, currency, target, on) or ZERO
 
     def _apply(self, ledger: Ledger, account: Account, tx: Transaction) -> None:
         on, currency = tx.trade_date, tx.currency
@@ -178,11 +190,13 @@ class PortfolioEngine:
             ledger.cash[currency] += cash_flow(tx.type, tx.amount, fee, tax, has_asset=tx.asset_id is not None)
 
         position = ledger.positions[tx.asset_id] if tx.asset_id is not None else None
+        asset_currency = self.assets[tx.asset_id].currency if tx.asset_id is not None else currency
         match tx.type:
             case TransactionType.BUY if position is not None:
                 cost = self._to_base(amount + fee + tax, currency, on)
                 position.quantity += quantity
                 position.cost_base += cost
+                position.cost_local += self._convert(amount + fee + tax, currency, asset_currency, on)
                 if not account.track_cash:
                     ledger.contributions += cost
             case TransactionType.SELL if position is not None:
@@ -192,9 +206,11 @@ class PortfolioEngine:
                 if not account.track_cash:
                     ledger.contributions -= proceeds
             case TransactionType.TRANSFER_IN if position is not None:
-                value = self._to_base(quantity * (tx.unit_price or ZERO), currency, on)
+                gross = quantity * (tx.unit_price or ZERO)
+                value = self._to_base(gross, currency, on)
                 position.quantity += quantity
                 position.cost_base += value
+                position.cost_local += self._convert(gross, currency, asset_currency, on)
                 ledger.contributions += value
                 ledger.costs += self._to_base(fee + tax, currency, on)
             case TransactionType.TRANSFER_OUT if position is not None:
@@ -225,10 +241,11 @@ class PortfolioEngine:
             return ZERO
         covered = min(quantity, position.quantity)
         basis = position.cost_base * covered / position.quantity
+        position.cost_local -= position.cost_local * covered / position.quantity
         position.cost_base -= basis
         position.quantity -= quantity
         if position.quantity <= 0:
-            position.cost_base = ZERO
+            position.cost_base = position.cost_local = ZERO
         return basis
 
     def replay(self) -> dict[int, Ledger]:
@@ -391,8 +408,35 @@ class PortfolioEngine:
             last_transaction_date=ledger.last_date,
         )
 
+    def logo_urls(self, asset_ids: Iterable[int]) -> dict[int, str]:
+        """Cache-busting URLs for assets whose logo has been downloaded."""
+        ids = list(asset_ids)
+        if not ids:
+            return {}
+        rows = self.session.execute(
+            select(AssetProfile.asset_id, AssetLogo.fetched_at)
+            .join(AssetLogo, AssetLogo.key == AssetProfile.logo_key)
+            .where(AssetProfile.asset_id.in_(ids), AssetLogo.data.is_not(None))
+        ).all()
+        return {asset_id: f"/api/assets/{asset_id}/logo?v={int(fetched.timestamp())}" for asset_id, fetched in rows}
+
+    def currency_logo_urls(self) -> dict[str, str]:
+        rows = self.session.execute(
+            select(AssetLogo.key, AssetLogo.fetched_at).where(
+                AssetLogo.key.like("currency:%"), AssetLogo.data.is_not(None)
+            )
+        ).all()
+        return {
+            key.removeprefix(
+                "currency:"
+            ): f"/api/currencies/{key.removeprefix('currency:')}/logo?v={int(fetched.timestamp())}"
+            for key, fetched in rows
+        }
+
     def holdings(self) -> HoldingsResponse:
         ledgers = self.replay()
+        logos = self.logo_urls(self.assets)
+        currency_logos = self.currency_logo_urls()
         holdings: list[Holding] = []
         cash: list[CashBalance] = []
         for account in self.accounts:
@@ -435,6 +479,8 @@ class PortfolioEngine:
                         unrealized_pnl_pct=ratio(unrealized, position.cost_base),
                         day_change=money(day_change),
                         weight=ZERO,
+                        avg_cost=_avg_cost(position),
+                        logo_url=logos.get(asset_id),
                     )
                 )
             if account.track_cash:
@@ -448,6 +494,7 @@ class PortfolioEngine:
                             currency=currency,
                             amount=money(amount),
                             value=money(self._to_base(amount, currency, self.as_of)),
+                            logo_url=currency_logos.get(currency),
                         )
                     )
         total = sum((h.value for h in holdings), ZERO) + sum((c.value for c in cash), ZERO)
@@ -455,6 +502,101 @@ class PortfolioEngine:
             holding.weight = ratio(holding.value, total) or ZERO
         holdings.sort(key=lambda h: h.value, reverse=True)
         return HoldingsResponse(base_currency=self.base, as_of=self.as_of, holdings=holdings, cash=cash)
+
+    def holding_detail(self, asset_id: int) -> HoldingDetail | None:
+        """One asset across every account; None when the user never transacted in it."""
+        asset = self.assets.get(asset_id)
+        if asset is None:
+            return None
+        ledgers = self.replay()
+        point = self.prices.at(asset_id, self.as_of)
+        price_date, price = point if point else (None, None)
+        previous = self.prices.before(asset_id, price_date) if price_date else None
+        previous_close = previous[1] if previous else None
+
+        combined = Position()
+        accounts: list[HoldingAccount] = []
+        value = day_change = portfolio_total = ZERO
+        for account in self.accounts:
+            ledger = ledgers[account.id]
+            portfolio_total += self._value(account, ledger, self.as_of).total
+            position = ledger.positions.get(asset_id)
+            if position is None or position.quantity == 0:
+                continue
+            combined.quantity += position.quantity
+            combined.cost_base += position.cost_base
+            combined.cost_local += position.cost_local
+            account_value = self._to_base(position.quantity * price, asset.currency, self.as_of) if price else ZERO
+            value += account_value
+            if price is not None and price_date is not None:
+                before = self._to_base(
+                    position.quantity * (previous_close or price), asset.currency, price_date - dt.timedelta(days=1)
+                )
+                day_change += account_value - before
+            unrealized = account_value - position.cost_base
+            accounts.append(
+                HoldingAccount(
+                    account_id=account.id,
+                    account_name=account.name,
+                    broker=account.broker,
+                    quantity=position.quantity.normalize(),
+                    value=money(account_value),
+                    cost_basis=money(position.cost_base),
+                    unrealized_pnl=money(unrealized),
+                    unrealized_pnl_pct=ratio(unrealized, position.cost_base),
+                )
+            )
+        accounts.sort(key=lambda a: a.value, reverse=True)
+        unrealized = value - combined.cost_base
+        profile = self.session.get(AssetProfile, asset_id)
+        activity = [
+            HoldingActivity(
+                id=tx.id,
+                account_id=tx.account_id,
+                account_name=self.account_by_id[tx.account_id].name,
+                date=tx.trade_date,
+                type=tx.type,
+                quantity=tx.quantity,
+                unit_price=tx.unit_price,
+                amount=tx.amount,
+                fee=tx.fee,
+                tax=tx.tax,
+                currency=tx.currency,
+            )
+            for tx in reversed(self.transactions)
+            if tx.asset_id == asset_id
+        ]
+        return HoldingDetail(
+            base_currency=self.base,
+            as_of=self.as_of,
+            asset=AssetOut(
+                id=asset.id,
+                symbol=asset.symbol,
+                name=asset.name,
+                isin=asset.isin,
+                asset_class=asset.asset_class,
+                currency=asset.currency,
+                exchange=asset.exchange,
+                yf_ticker=asset.yf_ticker,
+                logo_url=self.logo_urls([asset_id]).get(asset_id),
+            ),
+            profile=AssetProfileOut.model_validate(profile, from_attributes=True) if profile else None,
+            price=price,
+            price_date=price_date,
+            previous_close=previous_close,
+            price_change_pct=ratio(price - previous_close, previous_close) if price and previous_close else None,
+            quantity=combined.quantity.normalize(),
+            avg_cost=_avg_cost(combined),
+            value_local=money(combined.quantity * price) if price else ZERO,
+            value=money(value),
+            cost_basis=money(combined.cost_base),
+            unrealized_pnl=money(unrealized),
+            unrealized_pnl_pct=ratio(unrealized, combined.cost_base),
+            day_change=money(day_change),
+            weight=ratio(value, portfolio_total) or ZERO,
+            accounts=accounts,
+            activity=activity,
+        )
 
     def history(self, range_key: HistoryRange) -> HistoryResponse:
         if not self.transactions:
@@ -496,6 +638,12 @@ class PortfolioEngine:
             change=money(change),
             change_pct=ratio(change, first_point.value + max(flows, ZERO)) if first_point.value or flows else None,
         )
+
+
+def _avg_cost(position: Position) -> Decimal | None:
+    if position.quantity <= 0 or position.cost_local <= 0:
+        return None
+    return (position.cost_local / position.quantity).quantize(Decimal("0.000001"))
 
 
 def _slices(values: dict[str, tuple[str, Decimal]]) -> list[AllocationSlice]:

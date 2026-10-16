@@ -88,6 +88,13 @@ Jacklyn is built to be shared with a few trusted people without exposing your se
 - **Valuation**: average-cost basis converted to the base currency at each transaction's own date, so P&L
   includes currency effects. Live quotes and FX come from yfinance in a background thread (15 min TTL) and
   are cached in `asset_prices` / `fx_rates`; the app keeps working offline from the cache.
+- **Asset profiles & logos**: the same refresh fills `asset_profiles` (fund issuer, TER, sector, description)
+  and downloads one logo per company or fund issuer into `asset_logos`. Browsers only ever load logos from
+  `/api/assets/{id}/logo`, so the CSP stays `img-src 'self'` and no third party learns what anyone holds.
+  Sources, best first: [Elbstream](https://elbstream.com) by ISIN (plus its commodity, crypto and currency
+  tiles; credited in the UI), then the company or fund issuer's website icon via Logo.dev (when
+  `JACKLYN_LOGO_DEV_TOKEN` is set) or Google. SVGs are stored only if they are plain drawings (no script,
+  event handlers or external references). Without any image the UI draws flags, a metal bar or initials.
 - **TBSZ**: account type `tbsz` with a vintage `tbsz_year`; the UI shows the lock-up (10% rate after three
   years, tax-free after five, counted from 1 January after the collection year).
 
@@ -98,7 +105,9 @@ Jacklyn is built to be shared with a few trusted people without exposing your se
 | GET | `/api/portfolio/summary?base=CHF` | Net worth, day & all-time P&L, allocations, accounts, market status |
 | GET | `/api/portfolio/history?range=1Y&base=CHF[&account_id=]` | Value vs. net invested series |
 | GET | `/api/portfolio/holdings?base=CHF[&account_id=]` | Positions and cash balances |
-| GET/POST | `/api/accounts` · GET/PATCH `/api/accounts/{id}` | Accounts with valuation; TBSZ rules enforced |
+| GET | `/api/portfolio/holdings/{asset_id}?base=CHF` | One asset across accounts: position, fund/company info, activity |
+| GET | `/api/assets/{asset_id}/chart?range=1D…MAX` · `/api/assets/{asset_id}/logo` | Price chart (Yahoo, cached in memory) and cached logo |
+| GET/POST | `/api/accounts` · GET/PATCH/DELETE `/api/accounts/{id}` | Accounts with valuation; TBSZ rules enforced |
 | GET | `/api/accounts/{id}/transactions` | Paginated ledger |
 | POST | `/api/import/preview` (multipart) | Detect → parse → normalized rows with duplicate flags, or a table preview for the column mapper |
 | POST | `/api/import/commit` | Idempotently store selected `StandardTransaction`s |

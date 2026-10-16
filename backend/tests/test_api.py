@@ -69,6 +69,60 @@ def test_account_crud_and_tbsz_rules(client: TestClient) -> None:
     assert client.get("/api/accounts/99999").status_code == 404
 
 
+def test_account_edit_relabels_currency_without_touching_amounts(client: TestClient) -> None:
+    account = _create_account(client, name="Wrong currency", currency="EUR", broker="Lightyear")
+    committed = client.post(
+        "/api/import/commit",
+        json={
+            "account_id": account["id"],
+            "transactions": [
+                {"date": "2025-01-02", "type": "deposit", "amount": "500", "currency": "EUR"},
+                {"date": "2025-01-03", "type": "deposit", "amount": "200", "currency": "CHF"},
+            ],
+            "filename": "x.csv",
+        },
+    )
+    assert committed.json()["imported"] == 2
+    before = client.get(f"/api/accounts/{account['id']}").json()
+
+    edited = client.patch(
+        f"/api/accounts/{account['id']}",
+        json={"currency": "chf", "broker": "Lightyear Europe", "external_account_id": "LY-1", "track_cash": True},
+    )
+    assert edited.status_code == 200, edited.text
+    after = edited.json()
+    assert (after["currency"], after["broker"], after["external_account_id"]) == ("CHF", "Lightyear Europe", "LY-1")
+    # A label fix, not a conversion: the value in the base currency and every stored amount are unchanged.
+    assert after["value"] == before["value"]
+    assert after["transaction_count"] == before["transaction_count"]
+    stored = client.get(f"/api/accounts/{account['id']}/transactions").json()["items"]
+    assert sorted((tx["currency"], Decimal(tx["amount"])) for tx in stored) == [
+        ("CHF", Decimal(200)),
+        ("EUR", Decimal(500)),
+    ]
+    holdings = client.get("/api/portfolio/holdings", params={"account_id": account["id"]}).json()
+    assert {(c["currency"], Decimal(c["amount"])) for c in holdings["cash"]} == {
+        ("CHF", Decimal(200)),
+        ("EUR", Decimal(500)),
+    }
+
+
+def test_account_edit_validation(client: TestClient) -> None:
+    first = _create_account(client, name="Edit A")
+    _create_account(client, name="Edit B")
+    url = f"/api/accounts/{first['id']}"
+    assert client.patch(url, json={"name": "Edit B"}).status_code == 409
+    assert client.patch(url, json={"currency": "EURO"}).status_code == 422
+    assert client.patch(url, json={"currency": None}).status_code == 422
+    assert client.patch(url, json={"name": ""}).status_code == 422
+    assert client.patch(url, json={"account_type": "tbsz"}).status_code == 422  # needs a vintage year
+    tbsz = client.patch(url, json={"account_type": "tbsz", "tbsz_year": 2025}).json()
+    assert (tbsz["account_type"], tbsz["tbsz_year"]) == ("tbsz", 2025)
+    back = client.patch(url, json={"account_type": "standard"}).json()
+    assert (back["account_type"], back["tbsz_year"]) == ("standard", None)
+    assert client.get(url).json()["name"] == "Edit A"
+
+
 def test_import_known_broker_preview_commit_and_dedupe(client: TestClient) -> None:
     account = _create_account(client, name="IBKR Import Test", external_account_id="U1234567")
     preview = _upload(client, "ibkr_activity.csv")
