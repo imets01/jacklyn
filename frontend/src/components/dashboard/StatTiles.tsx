@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import type { PortfolioSummary } from '../../api/types'
 import { formatMoney } from '../../lib/format'
 import { Delta } from '../ui/Delta'
+import { CashBreakdown } from './CashBreakdown'
 import { Card } from '../ui/primitives'
 
 function Tile({ label, value, detail }: { label: string; value: ReactNode; detail?: ReactNode }) {
@@ -42,7 +43,7 @@ export function StatTiles({ summary }: { summary: PortfolioSummary }) {
       <Tile
         label="Cash"
         value={formatMoney(summary.cash, currency)}
-        detail={<span className="tabular">{formatMoney(summary.holdings_value, currency)} invested in assets</span>}
+        detail={<CashBreakdown currency={currency} />}
       />
     </div>
   )

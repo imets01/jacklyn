@@ -8,7 +8,8 @@ import type { TransactionRow } from '../api/types'
 import { AccountFormModal } from '../components/accounts/AccountFormModal'
 import { AccountTypeBadge, BrokerAvatar, TbszProgress } from '../components/accounts/AccountRow'
 import { DeleteAccountCard } from '../components/accounts/DeleteAccountCard'
-import { AssetIcon, CurrencyIcon } from '../components/assets/AssetIcon'
+import { AssetIcon } from '../components/assets/AssetIcon'
+import { CashBreakdown } from '../components/dashboard/CashBreakdown'
 import { NetWorthCard } from '../components/dashboard/NetWorthCard'
 import { PageHeader } from '../components/layout/PageHeader'
 import { Delta } from '../components/ui/Delta'
@@ -39,7 +40,7 @@ function HoldingsTable({ accountId, currency }: { accountId: number; currency: s
   const navigate = useNavigate()
   if (holdings.isLoading) return <Spinner className="m-6" />
   const data = holdings.data
-  if (!data || (data.holdings.length === 0 && data.cash.length === 0)) {
+  if (!data || data.holdings.length === 0) {
     return <p className="px-6 py-8 text-sm text-ink-3">No open positions.</p>
   }
   return (
@@ -98,24 +99,6 @@ function HoldingsTable({ accountId, currency }: { accountId: number; currency: s
                 <Delta amount={holding.unrealized_pnl} pct={holding.unrealized_pnl_pct} currency={currency} className="justify-end" />
               </td>
               <td className="px-6 py-3 text-right text-ink-2">{formatPercent(holding.weight, { digits: 1 })}</td>
-            </tr>
-          ))}
-          {data.cash.map((cash) => (
-            <tr key={cash.currency} className="border-t border-line">
-              <td className="px-6 py-3">
-                <span className="flex items-center gap-3">
-                  <CurrencyIcon currency={cash.currency} logoUrl={cash.logo_url} size="sm" />
-                  <span>
-                    <span className="block font-semibold text-ink">Cash {cash.currency}</span>
-                    <span className="block text-xs text-ink-3">Settled balance</span>
-                  </span>
-                </span>
-              </td>
-              <td className="px-3 py-3 text-right text-ink-2" colSpan={2}>
-                {formatMoney(cash.amount, cash.currency)}
-              </td>
-              <td className="px-3 py-3 text-right font-semibold text-ink">{formatMoney(cash.value, currency)}</td>
-              <td colSpan={2} />
             </tr>
           ))}
         </tbody>
@@ -282,14 +265,21 @@ export function AccountDetailPage() {
                 {data.value_account_currency ? formatMoney(data.value_account_currency, data.currency) : '—'}
               </p>
             </Card>
-            <Card className="px-5 py-4">
-              <p className="text-[13px] font-medium text-ink-3">{data.account_type === 'tbsz' ? 'Lock-up' : 'Cash'}</p>
-              {data.account_type === 'tbsz' ? (
-                <TbszProgress account={data} />
-              ) : (
+            {data.track_cash ? (
+              <Card className="px-5 py-4">
+                <p className="text-[13px] font-medium text-ink-3">Cash</p>
                 <p className="mt-2 font-display text-lg font-semibold text-ink">{formatMoney(data.cash, baseCurrency)}</p>
-              )}
-            </Card>
+                <div className="mt-3">
+                  <CashBreakdown currency={baseCurrency} accountId={id} />
+                </div>
+              </Card>
+            ) : null}
+            {data.account_type === 'tbsz' ? (
+              <Card className="px-5 py-4">
+                <p className="text-[13px] font-medium text-ink-3">Lock-up</p>
+                <TbszProgress account={data} />
+              </Card>
+            ) : null}
           </div>
         </div>
         <Card>

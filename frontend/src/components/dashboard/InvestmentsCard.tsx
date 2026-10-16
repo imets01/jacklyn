@@ -3,9 +3,9 @@ import { ChevronRight, FileUp } from 'lucide-react'
 import { Link } from 'react-router'
 
 import { useHoldings } from '../../api/hooks'
-import { combineCash, combinePositions, holdingTitle, type Position } from '../../lib/holdings'
+import { combinePositions, holdingTitle, type Position } from '../../lib/holdings'
 import { formatMoney, formatPercent, formatPrice, formatQuantity } from '../../lib/format'
-import { AssetIcon, CurrencyIcon } from '../assets/AssetIcon'
+import { AssetIcon } from '../assets/AssetIcon'
 import { Delta } from '../ui/Delta'
 import { Card, CardHeader, EmptyState, Spinner } from '../ui/primitives'
 
@@ -52,7 +52,6 @@ function PositionRow({ position, currency }: { position: Position; currency: str
 export function InvestmentsCard({ currency }: { currency: string }) {
   const holdings = useHoldings(currency)
   const positions = combinePositions(holdings.data?.holdings ?? [])
-  const cash = combineCash(holdings.data?.cash ?? [])
 
   return (
     <Card>
@@ -63,7 +62,7 @@ export function InvestmentsCard({ currency }: { currency: string }) {
       <div className={clsx('px-3 pb-3 pt-2 transition-opacity', holdings.isPlaceholderData && 'opacity-60')}>
         {holdings.isLoading ? (
           <Spinner className="m-6" />
-        ) : positions.length === 0 && cash.length === 0 ? (
+        ) : positions.length === 0 ? (
           <EmptyState icon={<FileUp className="size-5" />} title="No investments yet">
             <Link to="/import" className="font-medium text-accent hover:underline">
               Import a statement
@@ -85,26 +84,6 @@ export function InvestmentsCard({ currency }: { currency: string }) {
                 <PositionRow key={position.assetId} position={position} currency={currency} />
               ))}
             </div>
-            {cash.length > 0 ? (
-              <div className="mt-2 border-t border-line pt-2">
-                {cash.map((total) => (
-                  <div key={total.currency} className={clsx(COLUMNS, 'px-3 py-3')}>
-                    <div className="flex min-w-0 items-center gap-3">
-                      <CurrencyIcon currency={total.currency} logoUrl={total.logoUrl} />
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-ink">Cash {total.currency}</p>
-                        <p className="truncate text-xs text-ink-3 tabular">{formatMoney(total.amount, total.currency)}</p>
-                      </div>
-                    </div>
-                    <span className="hidden lg:block" />
-                    <span className="hidden lg:block" />
-                    <span className="hidden lg:block" />
-                    <p className="text-right text-sm font-semibold tabular text-ink">{formatMoney(total.value, currency)}</p>
-                    <span className="hidden lg:block" />
-                  </div>
-                ))}
-              </div>
-            ) : null}
             <p className="px-3 pt-3 text-[11px] text-ink-3">
               Logos by{' '}
               <a href="https://elbstream.com" target="_blank" rel="noreferrer noopener" className="hover:text-ink">

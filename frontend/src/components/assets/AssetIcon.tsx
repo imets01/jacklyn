@@ -4,9 +4,9 @@ import { useState, type ReactNode } from 'react'
 import type { AssetClass } from '../../api/types'
 import { seriesVar, SERIES_SLOTS } from '../../lib/palette'
 
-type IconSize = 'sm' | 'md' | 'lg'
+type IconSize = 'xs' | 'sm' | 'md' | 'lg'
 
-const SIZE_CLASS: Record<IconSize, string> = { sm: 'size-8 text-[11px]', md: 'size-10 text-xs', lg: 'size-14 text-base' }
+const SIZE_CLASS: Record<IconSize, string> = { xs: 'size-5 text-[8px]', sm: 'size-8 text-[11px]', md: 'size-10 text-xs', lg: 'size-14 text-base' }
 
 function Frame({ size, className, children, label }: { size: IconSize; className?: string; children: ReactNode; label?: string }) {
   return (
