@@ -149,6 +149,7 @@ def apply_info(asset: Asset, profile: AssetProfile, info: dict[str, Any]) -> Non
     profile.industry = _text(info.get("industry"), 120)
     profile.description = _text(info.get("longBusinessSummary"), 4000)
     profile.website = _text(info.get("website"), 200)
+    profile.country = _text(info.get("country"), 64)
     # Yahoo reports netExpenseRatio in percent (0.07 = 0.07%); store a plain fraction.
     ter = _decimal(info.get("netExpenseRatio"))
     profile.expense_ratio = ter / 100 if ter is not None else None
@@ -196,11 +197,71 @@ def fetch_info(ticker: str) -> dict[str, Any]:
     return info if isinstance(info, dict) else {}
 
 
+FUND_CLASS_KEYS = {
+    "stockPosition": "stock",
+    "bondPosition": "bond",
+    "cashPosition": "cash",
+    "preferredPosition": "other",
+    "convertiblePosition": "other",
+    "otherPosition": "other",
+}
+
+
+def _weights(raw: dict[str, Any] | None, keys: dict[str, str] | None = None) -> dict[str, str] | None:
+    """{name: fraction} as decimal strings, dropping zeros and anything that isn't a sane fraction."""
+    if not raw:
+        return None
+    weights: dict[str, Decimal] = {}
+    for name, value in raw.items():
+        fraction = _decimal(value)
+        if fraction is None or fraction == 0 or fraction > 1:
+            continue
+        key = keys.get(str(name), "other") if keys else str(name)
+        weights[key] = weights.get(key, Decimal(0)) + fraction
+    return {key: str(value.quantize(Decimal("0.0001"))) for key, value in weights.items()} or None
+
+
+def fetch_fund_data(ticker: str) -> dict[str, dict[str, str] | None]:
+    """Sector, asset-class and top-10 weights of a fund from Yahoo; any part may be missing."""
+    from app.services.market_data import load_yfinance  # noqa: PLC0415 - avoid an import cycle
+
+    funds = load_yfinance().Ticker(ticker).funds_data
+    top = getattr(funds, "top_holdings", None)
+    top_weights: dict[str, Any] = {}
+    if top is not None and not top.empty and "Holding Percent" in top:
+        top_weights = {str(symbol): value for symbol, value in top["Holding Percent"].items()}
+    return {
+        "sectors": _weights(getattr(funds, "sector_weightings", None)),
+        "classes": _weights(getattr(funds, "asset_classes", None), FUND_CLASS_KEYS),
+        "top": _weights(top_weights),
+    }
+
+
+def apply_fund_data(profile: AssetProfile, data: dict[str, dict[str, str] | None]) -> None:
+    profile.sector_weights = data.get("sectors")
+    profile.class_weights = data.get("classes")
+    profile.top_holdings = data.get("top")
+
+
 def profile_is_stale(profile: AssetProfile | None, now: dt.datetime) -> bool:
     return profile is None or now - profile.fetched_at > PROFILE_MAX_AGE
 
 
-def refresh_profile(session: Session, asset: Asset, *, use_network: bool) -> AssetProfile:
+def _as_strings(weights: dict[str, Decimal] | None) -> dict[str, str] | None:
+    return {key: str(value.quantize(Decimal("0.000001"))) for key, value in weights.items()} if weights else None
+
+
+def apply_eulerpool(profile: AssetProfile, isin: str, token: str) -> None:
+    from app.services.eulerpool import fetch_fund  # noqa: PLC0415 - optional provider
+
+    look_through = fetch_fund(isin, token)
+    profile.country_weights = _as_strings(look_through.countries)
+    profile.holdings = _as_strings(look_through.holdings)
+
+
+def refresh_profile(
+    session: Session, asset: Asset, *, use_network: bool, eulerpool_token: str | None = None
+) -> AssetProfile:
     profile = session.get(AssetProfile, asset.id) or AssetProfile(asset_id=asset.id)
     if use_network and asset.yf_ticker:
         try:
@@ -208,8 +269,23 @@ def refresh_profile(session: Session, asset: Asset, *, use_network: bool) -> Ass
         except Exception as exc:  # noqa: BLE001 - provider hiccups just leave the profile name-based
             logger.info("No profile for %s: %s", asset.yf_ticker, exc)
             classify(asset, profile)
+        if asset.asset_class in (AssetClass.ETF, AssetClass.FUND):
+            try:
+                apply_fund_data(profile, fetch_fund_data(asset.yf_ticker))
+            except Exception as exc:  # noqa: BLE001 - look-through is optional
+                logger.info("No fund data for %s: %s", asset.yf_ticker, exc)
     else:
         classify(asset, profile)
+    if use_network and eulerpool_token and asset.isin:
+        try:
+            if asset.asset_class in (AssetClass.ETF, AssetClass.FUND):
+                apply_eulerpool(profile, asset.isin, eulerpool_token)
+            elif asset.asset_class is AssetClass.STOCK and not profile.country:
+                from app.services.eulerpool import fetch_company_country  # noqa: PLC0415 - optional provider
+
+                profile.country = fetch_company_country(asset.isin, eulerpool_token)
+        except Exception as exc:  # noqa: BLE001 - keep the previous data when the provider fails
+            logger.info("No Eulerpool data for %s: %s", asset.isin, type(exc).__name__)
     profile.fetched_at = dt.datetime.now(dt.UTC)
     session.add(profile)
     return profile
@@ -315,7 +391,7 @@ def usable_logo(data: bytes) -> str | None:
     return kind
 
 
-def logo_sources(key: str, logo_dev_token: str | None) -> list[tuple[str, str]]:
+def logo_sources(key: str) -> list[tuple[str, str]]:
     """(source name, URL) candidates in order of preference. Hosts are fixed: no user-controlled URLs."""
     kind, _, value = key.partition(":")
     match kind:
@@ -336,18 +412,13 @@ def logo_sources(key: str, logo_dev_token: str | None) -> list[tuple[str, str]]:
                 ),
             ]
         case "domain":
-            pass
+            return [("google", f"https://www.google.com/s2/favicons?domain={value}&sz=128")]
         case _:
             return []
-    sources = []
-    if logo_dev_token:
-        sources.append(("logo.dev", f"https://img.logo.dev/{value}?token={logo_dev_token}&size=128&format=png"))
-    sources.append(("google", f"https://www.google.com/s2/favicons?domain={value}&sz=128"))
-    return sources
 
 
-def download_logo(client: httpx.Client, key: str, logo_dev_token: str | None) -> tuple[bytes, str, str] | None:
-    for source, url in logo_sources(key, logo_dev_token):
+def download_logo(client: httpx.Client, key: str) -> tuple[bytes, str, str] | None:
+    for source, url in logo_sources(key):
         try:
             response = client.get(url)
         except httpx.HTTPError as exc:
@@ -370,21 +441,16 @@ def logo_is_due(logo: AssetLogo | None, now: dt.datetime) -> bool:
 def refresh_logos(
     session: Session,
     keys: set[str],
-    logo_dev_token: str | None,
     *,
     limit: int = 30,
     transport: httpx.BaseTransport | None = None,
 ) -> int:
     """Fetch logos that are missing or due; returns how many images were stored."""
-    return resolve_logos(
-        session, {i: [key] for i, key in enumerate(sorted(keys))}, logo_dev_token, limit=limit, transport=transport
-    )[1]
+    return resolve_logos(session, {i: [key] for i, key in enumerate(sorted(keys))}, limit=limit, transport=transport)[1]
 
 
-def _fetch_into(
-    client: httpx.Client, key: str, logo: AssetLogo | None, token: str | None, now: dt.datetime
-) -> tuple[AssetLogo, bool]:
-    found = download_logo(client, key, token)
+def _fetch_into(client: httpx.Client, key: str, logo: AssetLogo | None, now: dt.datetime) -> tuple[AssetLogo, bool]:
+    found = download_logo(client, key)
     logo = logo or AssetLogo(key=key)
     if found:
         logo.data, logo.content_type, logo.source = found
@@ -397,7 +463,6 @@ def _fetch_into(
 def resolve_logos(
     session: Session,
     candidates: dict[int, list[str]],
-    logo_dev_token: str | None,
     *,
     limit: int = 30,
     transport: httpx.BaseTransport | None = None,
@@ -424,7 +489,7 @@ def resolve_logos(
                 logo = existing.get(key)
                 if logo_is_due(logo, now) and budget < limit:
                     budget += 1
-                    logo, fetched = _fetch_into(client, key, logo, logo_dev_token, now)
+                    logo, fetched = _fetch_into(client, key, logo, now)
                     existing[key] = logo
                     session.add(logo)
                     stored += fetched

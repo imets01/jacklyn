@@ -39,7 +39,11 @@ export function SettingsPage() {
         </section>
         {me.is_admin ? <PeopleSection me={me} /> : null}
         <p className="text-xs text-ink-3">
-          Market data from Yahoo Finance. Stock, fund, commodity and currency logos by{' '}
+          Market data from Yahoo Finance; fund country mixes and holdings from{' '}
+          <a href="https://eulerpool.com" target="_blank" rel="noreferrer noopener" className="text-accent hover:underline">
+            Eulerpool
+          </a>{' '}
+          (when configured). Stock, fund, commodity and currency logos by{' '}
           <a href="https://elbstream.com" target="_blank" rel="noreferrer noopener" className="text-accent hover:underline">
             Elbstream
           </a>

@@ -431,3 +431,159 @@ export interface MarketRefreshResult {
   last_refresh_at: ISODateTime | null
   last_refresh_error: string | null
 }
+
+// ---------------------------------------------------------------- portfolio health
+
+export const RISK_LEVELS = ['conservative', 'balanced', 'growth', 'aggressive'] as const
+export type RiskLevel = (typeof RISK_LEVELS)[number]
+export const HEALTH_CATEGORIES = ['equity', 'bonds', 'commodities', 'crypto', 'other', 'cash'] as const
+export type HealthCategory = (typeof HEALTH_CATEGORIES)[number]
+export type Severity = 'good' | 'info' | 'warning' | 'problem'
+
+export interface InvestorProfile {
+  birth_year: number | null
+  horizon_years: number | null
+  risk_tolerance: RiskLevel
+  goal: string | null
+  home_country: string
+  emergency_fund: Money | null
+  monthly_contribution: Money | null
+  min_order: Money
+  fractional_shares: boolean
+  target_overrides: Partial<Record<HealthCategory, Ratio>> | null
+}
+
+export interface Citation {
+  title: string
+  publisher: string
+  year: number
+  url: string
+  note: string | null
+}
+
+export interface Finding {
+  rule_id: string
+  title: string
+  severity: Severity
+  message: string
+  value: string
+  threshold: string
+  explanation: string
+  threshold_note: string
+  citations: Citation[]
+}
+
+export interface ScoreLine {
+  rule_id: string
+  title: string
+  severity: Severity
+  points: number
+}
+
+export interface HealthRule {
+  id: string
+  title: string
+  levels: string[]
+  threshold_note: string
+  citations: Citation[]
+}
+
+export interface HealthSlice {
+  key: string
+  label: string
+  value: Money
+  weight: Ratio
+  compare: Ratio | null
+}
+
+export interface HealthBreakdown {
+  title: string
+  compare_label: string | null
+  slices: HealthSlice[]
+  note: string | null
+}
+
+export interface HealthPosition {
+  asset_id: number
+  symbol: string
+  name: string | null
+  asset_class: AssetClass
+  logo_url: string | null
+  value: Money
+  weight: Ratio
+  ter: Ratio | null
+}
+
+export interface RebalanceOrder {
+  category: string
+  category_label: string
+  amount: Money
+  asset_id: number | null
+  symbol: string | null
+  name: string | null
+  asset_class: AssetClass | null
+  logo_url: string | null
+  currency: string | null
+  quantity: string | null
+  local_amount: Money | null
+}
+
+export interface RebalanceRow {
+  category: string
+  label: string
+  value: Money
+  before: Ratio
+  after: Ratio
+  target: Ratio
+  band: Ratio
+  buy: Money
+  full_rebalance: Money
+}
+
+export interface RebalancePlan {
+  amount: Money
+  monthly_contribution: Money
+  idle_cash: Money
+  include_idle_cash: boolean
+  fractional_shares: boolean
+  min_order: Money
+  rows: RebalanceRow[]
+  orders: RebalanceOrder[]
+  unspent: Money
+  in_band_before: boolean
+  in_band_after: boolean
+  months_to_band: number | null
+}
+
+export interface HealthReport {
+  base_currency: string
+  as_of: ISODate
+  has_holdings: boolean
+  profile: (InvestorProfile & { updated_at: ISODateTime }) | null
+  horizon_years: number | null
+  suggested_equity: Ratio | null
+  targets: Partial<Record<HealthCategory, Ratio>> | null
+  targets_source: 'profile' | 'manual' | null
+  glide_citation: Citation
+  total: Money
+  invested: Money
+  cash: Money
+  score: number
+  score_start: number
+  score_penalties: Partial<Record<Severity, number>>
+  score_lines: ScoreLine[]
+  findings: Finding[]
+  skipped_rules: string[]
+  breakdowns: Record<'asset_class' | 'country' | 'sector' | 'currency' | 'issuer', HealthBreakdown>
+  positions: HealthPosition[]
+  ter: { weighted: Ratio | null; covered_value: Money; uncovered_value: Money }
+  overlaps: { first: string; second: string; shared: Ratio; complete: boolean }[]
+  /** Share of stock value whose country is reported (company HQ / fund data), estimated, or unknown. */
+  country_quality: Partial<Record<'reported' | 'estimated' | 'unknown', Ratio>>
+  look_through_provider: string | null
+  notes: string[]
+  benchmark_name: string
+  benchmark_sources: { title: string; publisher: string; url: string; as_of: string }[]
+  rebalance: RebalancePlan | null
+  rules: HealthRule[]
+}

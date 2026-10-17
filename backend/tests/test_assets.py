@@ -174,7 +174,7 @@ def _transport(responses: dict[str, httpx.Response], seen: list[str]) -> httpx.M
 def test_refresh_logos_stores_hits_and_misses_once(db: Session) -> None:
     seen: list[str] = []
     transport = _transport({"domain=ishares.com": httpx.Response(200, content=png())}, seen)
-    stored = refresh_logos(db, {"domain:ishares.com", "domain:unknown.example"}, None, transport=transport)
+    stored = refresh_logos(db, {"domain:ishares.com", "domain:unknown.example"}, transport=transport)
     assert stored == 1
     logos = {logo.key: logo for logo in db.scalars(select(AssetLogo))}
     assert logos["domain:ishares.com"].content_type == "image/png"
@@ -182,30 +182,30 @@ def test_refresh_logos_stores_hits_and_misses_once(db: Session) -> None:
     assert logos["domain:unknown.example"].data is None  # a recorded miss
 
     seen.clear()
-    assert refresh_logos(db, {"domain:ishares.com", "domain:unknown.example"}, None, transport=transport) == 0
+    assert refresh_logos(db, {"domain:ishares.com", "domain:unknown.example"}, transport=transport) == 0
     assert seen == []  # nothing is due yet
 
 
-def test_refresh_logos_prefers_logo_dev_with_a_token_and_keeps_old_images(db: Session) -> None:
+def test_refresh_logos_keeps_old_images_when_a_refetch_fails(db: Session) -> None:
     seen: list[str] = []
-    transport = _transport({"img.logo.dev/apple.com": httpx.Response(200, content=png(256, 256))}, seen)
-    assert refresh_logos(db, {"domain:apple.com"}, "pk_test", transport=transport) == 1
-    assert "img.logo.dev/apple.com" in seen[0]
+    transport = _transport({"domain=apple.com": httpx.Response(200, content=png(256, 256))}, seen)
+    assert refresh_logos(db, {"domain:apple.com"}, transport=transport) == 1
+    assert seen == ["https://www.google.com/s2/favicons?domain=apple.com&sz=128"]
     logo = db.get(AssetLogo, "domain:apple.com")
     assert logo is not None
-    assert logo.source == "logo.dev"
+    assert logo.source == "google"
 
     # Due again, but every source fails: the old image stays.
     logo.fetched_at = dt.datetime.now(dt.UTC) - dt.timedelta(days=365)
     db.flush()
-    assert refresh_logos(db, {"domain:apple.com"}, None, transport=_transport({}, [])) == 0
+    assert refresh_logos(db, {"domain:apple.com"}, transport=_transport({}, [])) == 0
     assert db.get(AssetLogo, "domain:apple.com").data == png(256, 256)  # type: ignore[union-attr]
 
 
 def test_crypto_logos_fall_back_to_the_icon_set(db: Session) -> None:
     seen: list[str] = []
     transport = _transport({"cryptocurrency-icons": httpx.Response(200, content=png())}, seen)
-    assert refresh_logos(db, {"crypto:btc"}, None, transport=transport) == 1
+    assert refresh_logos(db, {"crypto:btc"}, transport=transport) == 1
     assert seen == [
         "https://api.elbstream.com/logos/crypto/btc",
         "https://cdn.jsdelivr.net/npm/cryptocurrency-icons@0.18.1/128/color/btc.png",
@@ -252,20 +252,20 @@ def test_resolve_logos_prefers_elbstream_and_falls_back_by_website(db: Session) 
         seen,
     )
     candidates = {1: ["isin:IE00B3WJKG14", "domain:ishares.com"], 2: ["isin:US0378331005", "domain:apple.com"], 3: []}
-    chosen, stored = resolve_logos(db, candidates, None, transport=transport)
+    chosen, stored = resolve_logos(db, candidates, transport=transport)
     assert chosen == {1: "isin:IE00B3WJKG14", 2: "domain:apple.com", 3: None}
     assert stored == 2
     assert not any("ishares.com" in url for url in seen)  # the ISIN hit made the website icon unnecessary
 
     seen.clear()
-    assert resolve_logos(db, candidates, None, transport=transport)[0] == chosen
+    assert resolve_logos(db, candidates, transport=transport)[0] == chosen
     assert seen == []  # cached hits and recorded misses aren't fetched again
 
 
 def test_commodity_and_currency_tiles_come_from_elbstream(db: Session) -> None:
     seen: list[str] = []
     transport = _transport({"elbstream": httpx.Response(200, content=png())}, seen)
-    assert refresh_logos(db, {"commodity:gold", "currency:EUR"}, None, transport=transport) == 2
+    assert refresh_logos(db, {"commodity:gold", "currency:EUR"}, transport=transport) == 2
     assert sorted(seen) == [
         "https://api.elbstream.com/logos/commodity/gold?size=128",
         "https://api.elbstream.com/logos/currency/EUR",

@@ -92,9 +92,14 @@ Jacklyn is built to be shared with a few trusted people without exposing your se
   and downloads one logo per company or fund issuer into `asset_logos`. Browsers only ever load logos from
   `/api/assets/{id}/logo`, so the CSP stays `img-src 'self'` and no third party learns what anyone holds.
   Sources, best first: [Elbstream](https://elbstream.com) by ISIN (plus its commodity, crypto and currency
-  tiles; credited in the UI), then the company or fund issuer's website icon via Logo.dev (when
-  `JACKLYN_LOGO_DEV_TOKEN` is set) or Google. SVGs are stored only if they are plain drawings (no script,
+  tiles; credited in the UI), then the company or fund issuer's website icon via Google. SVGs are stored only if they are plain drawings (no script,
   event handlers or external references). Without any image the UI draws flags, a metal bar or initials.
+- **Portfolio Health**: a deterministic rules engine (`backend/app/health/`). Rules, thresholds and their
+  cited sources live in `backend/app/health/data/rules.toml`; the MSCI ACWI benchmark weights and the
+  fund-index → country mapping in `benchmarks.toml` (update both from the cited factsheets). With
+  `JACKLYN_EULERPOOL_TOKEN` set, funds use their real country mix and full holdings from
+  [Eulerpool](https://eulerpool.com) instead; the index mapping is then only a fallback. The rebalancing
+  assistant spends new money only (no sells) and is covered by unit tests in `tests/test_health.py`.
 - **TBSZ**: account type `tbsz` with a vintage `tbsz_year`; the UI shows the lock-up (10% rate after three
   years, tax-free after five, counted from 1 January after the collection year).
 
@@ -110,6 +115,7 @@ Jacklyn is built to be shared with a few trusted people without exposing your se
 | GET/POST | `/api/accounts` · GET/PATCH/DELETE `/api/accounts/{id}` | Accounts with valuation; TBSZ rules enforced |
 | GET | `/api/accounts/{id}/transactions` | Paginated ledger |
 | GET | `/api/transactions?account_id=&type=&asset_id=&q=&date_from=&date_to=` | Ledger across accounts with filters (search matches symbol, name, ISIN, note) |
+| GET/PUT | `/api/health/profile` · GET `/api/health/report?base=&amount=&include_cash=` | Investor profile; Portfolio Health report (breakdowns, rule findings with citations, score, rebalancing plan) |
 | POST | `/api/import/preview` (multipart) | Detect → parse → normalized rows with duplicate flags, or a table preview for the column mapper |
 | POST | `/api/import/commit` | Idempotently store selected `StandardTransaction`s |
 | GET | `/api/import/logs` · `/api/import/parsers` | Import history, available presets |

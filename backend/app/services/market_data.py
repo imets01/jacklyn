@@ -261,7 +261,9 @@ class MarketDataService:
         profiles = {p.asset_id: p for p in session.scalars(select(AssetProfile))}
         stale = [asset for asset in held if profile_is_stale(profiles.get(asset.id), now)]
         for asset in stale[:limit]:
-            profiles[asset.id] = refresh_profile(session, asset, use_network=True)
+            profiles[asset.id] = refresh_profile(
+                session, asset, use_network=True, eulerpool_token=self._settings.eulerpool_token
+            )
             report.profiles_updated += 1
         session.flush()
         held_by_id = {asset.id: asset for asset in held}
@@ -272,10 +274,10 @@ class MarketDataService:
         }
         currencies = set(session.scalars(select(Transaction.currency).distinct()))
         try:
-            chosen, stored = resolve_logos(session, candidates, self._settings.logo_dev_token)
+            chosen, stored = resolve_logos(session, candidates)
             for asset_id, key in chosen.items():
                 profiles[asset_id].logo_key = key
-            stored += refresh_logos(session, {f"currency:{code}" for code in currencies}, None)
+            stored += refresh_logos(session, {f"currency:{code}" for code in currencies})
             report.logos_fetched += stored
         except Exception as exc:  # noqa: BLE001 - logos are optional
             report.errors.append(f"logos: {exc}")

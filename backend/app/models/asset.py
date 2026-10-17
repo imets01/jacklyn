@@ -1,7 +1,7 @@
 import datetime as dt
 from decimal import Decimal
 
-from sqlalchemy import Date, ForeignKey, LargeBinary, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Date, ForeignKey, LargeBinary, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.session import Base
@@ -77,6 +77,14 @@ class AssetProfile(Base):
     fund_size: Mapped[Decimal | None]  # total assets, in the listing currency
     # Shared key into asset_logos ("domain:ishares.com", "crypto:btc"), so one issuer's funds share a logo.
     logo_key: Mapped[str | None] = mapped_column(String(120))
+    country: Mapped[str | None] = mapped_column(String(64))  # company headquarters, for single stocks
+    # Fund look-through from Yahoo, as {name: "fraction"} strings so no float ever enters the math.
+    sector_weights: Mapped[dict[str, str] | None] = mapped_column(JSON)
+    class_weights: Mapped[dict[str, str] | None] = mapped_column(JSON)  # stock / bond / cash / other
+    top_holdings: Mapped[dict[str, str] | None] = mapped_column(JSON)  # symbol -> weight, top 10 only
+    # From Eulerpool when a key is configured: the fund's real country mix and its full holdings (ISIN -> weight).
+    country_weights: Mapped[dict[str, str] | None] = mapped_column(JSON)
+    holdings: Mapped[dict[str, str] | None] = mapped_column(JSON)
     fetched_at: Mapped[dt.datetime] = mapped_column(default=utcnow)
 
 

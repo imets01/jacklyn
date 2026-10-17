@@ -1,0 +1,227 @@
+# Portfolio Health rules. Every finding on the Health page comes from one of these rules: a metric computed
+# deterministically from your holdings, compared against the thresholds below. Edit thresholds freely.
+#
+# Rule fields
+#   id, title     stable identifier and display name
+#   metric        name of a metric computed in app/health/metrics.py
+#   format        how values and thresholds are shown: percent | points | count | multiple
+#   levels        checked worst-first; the first that matches sets the severity
+#                 severity: good | info | warning | problem    op: > >= < <=
+#   message       shown with the finding; {value} {threshold} and metric context keys are filled in
+#   pass_message  optional: shown as a strength when no warning/problem/info level matches
+#   explanation   plain-language "why" (shown under "Why?")
+#   threshold_note  honest note on where the number comes from (source vs. Jacklyn default)
+#   citations     title, publisher, year, url, optional note
+
+[score]
+start = 100
+# Points subtracted per finding; info and good findings never change the score.
+penalties = { problem = 15, warning = 5 }
+
+[rebalancing]
+# A category is "in band" while its weight is within the smaller of these of its target.
+absolute_band = "0.05"
+relative_band = "0.25"
+
+[profile]
+# Linear approximation of Vanguard's target-date glide path (Figure 2 in the 2019 paper): 90% equity until
+# 25 years before the target date, 50% at the target date, falling to 30% over the following 7 years.
+glide_start_equity = "0.90"
+glide_years = 25
+glide_target_equity = "0.50"
+glide_floor_equity = "0.30"
+glide_floor_years = 7
+# Jacklyn convention (not from a source): how the stated risk tolerance shifts the equity share.
+risk_adjustments = { conservative = "-0.20", balanced = "-0.10", growth = "0", aggressive = "0.10" }
+glide_citation = "vanguard_tdf"
+
+# ----------------------------------------------------------------------------------------------- sources
+
+[sources.finra_concentration]
+title = "Concentrate on Concentration Risk"
+publisher = "FINRA (Financial Industry Regulatory Authority)"
+year = 2022
+url = "https://www.finra.org/investors/insights/concentration-risk"
+
+[sources.statman_1987]
+title = "How Many Stocks Make a Diversified Portfolio? Journal of Financial and Quantitative Analysis 22(3), 353–363"
+publisher = "Meir Statman / Cambridge University Press"
+year = 1987
+url = "https://www.cambridge.org/core/journals/journal-of-financial-and-quantitative-analysis/article/abs/how-many-stocks-make-a-diversified-portfolio/CE5CDF2C7225FC1E0EDE3E700A3C66A7"
+
+[sources.french_poterba_1991]
+title = "Investor Diversification and International Equity Markets. American Economic Review 81(2), 222–226"
+publisher = "Kenneth R. French & James M. Poterba / American Economic Association"
+year = 1991
+url = "https://ideas.repec.org/a/aea/aecrev/v81y1991i2p222-26.html"
+
+[sources.markowitz_1952]
+title = "Portfolio Selection. Journal of Finance 7(1), 77–91"
+publisher = "Harry Markowitz / American Finance Association"
+year = 1952
+url = "https://doi.org/10.1111/j.1540-6261.1952.tb01525.x"
+
+[sources.msci_acwi]
+title = "MSCI ACWI Index (USD) factsheet"
+publisher = "MSCI"
+year = 2026
+url = "https://www.msci.com/documents/10199/255599/msci-acwi-net.pdf"
+
+[sources.sec_fees]
+title = "How Fees and Expenses Affect Your Investment Portfolio – Investor Bulletin"
+publisher = "U.S. SEC, Office of Investor Education and Advocacy (Investor.gov)"
+year = 2025
+url = "https://www.investor.gov/additional-resources/news-alerts/alerts-bulletins/updated-investor-bulletin-how-fees-expenses-affect"
+
+[sources.morningstar_fees]
+title = "How Fund Fees are the Best Predictor of Returns"
+publisher = "Morningstar (Russel Kinnel)"
+year = 2016
+url = "https://global.morningstar.com/en-gb/funds/how-fund-fees-are-the-best-predictor-of-returns"
+
+[sources.vanguard_rebalancing]
+title = "Best Practices for Portfolio Rebalancing"
+publisher = "Vanguard Research (Jaconetti, Kinniry & Zilbering)"
+year = 2010
+url = "https://www.aaii.com/files/journal/pdf/best-practices-for-portfolio-rebalancing.pdf"
+note = "Reprint published by AAII; the original is on Vanguard's research site."
+
+[sources.vanguard_tdf]
+title = "Vanguard's approach to target-date funds"
+publisher = "Vanguard Research (Donaldson, Kinniry, Scott, Dinucci et al.)"
+year = 2019
+url = "https://workplace.vanguard.com/content/dam/inst/iig-transformation/insights/pdf/2022/Vanguards-approach-to-target-date-funds.pdf"
+
+[sources.vanguard_cash]
+title = "A framework for allocating to cash"
+publisher = "Vanguard Research"
+year = 2024
+url = "https://corpaemdisp.essp.c1.vanguard.com/content/dam/corp/research/pdf/a_framework_for_allocating_to_cash.pdf"
+
+# ----------------------------------------------------------------------------------------------- rules
+
+[[rule]]
+id = "single_stock_concentration"
+title = "Single-stock concentration"
+metric = "max_single_stock_weight"
+format = "percent"
+levels = [
+  { severity = "problem", op = ">", threshold = "0.10" },
+  { severity = "warning", op = ">", threshold = "0.05" },
+]
+message = "{asset} is {value} of your portfolio (limit {threshold})."
+pass_message = "No single stock is more than {threshold} of your portfolio (largest: {asset}, {value})."
+explanation = "A large part of your wealth in one company ties your outcome to that company's fate. Diversified funds spread this company-specific risk away at no expected cost. Funds are not counted here."
+threshold_note = "FINRA describes the risk but gives no number; 5% and 10% are Jacklyn defaults."
+citations = ["finra_concentration", "markowitz_1952"]
+
+[[rule]]
+id = "too_few_holdings"
+title = "Few holdings without a broad fund"
+metric = "single_stock_count_without_broad_fund"
+format = "count"
+levels = [{ severity = "warning", op = "<", threshold = "30" }]
+message = "You hold {value} individual stocks and no broad index fund; research suggests at least {threshold} for good diversification."
+explanation = "Diversification keeps reducing risk well beyond ten stocks. Statman (1987) found a well-diversified random portfolio needs at least 30–40 stocks. A broad index fund achieves this on its own, so the rule only applies when you hold none."
+threshold_note = "30 is the lower end of Statman's 30–40 stocks."
+citations = ["statman_1987"]
+
+[[rule]]
+id = "home_bias"
+title = "Home-country bias"
+metric = "home_equity_multiple"
+format = "multiple"
+levels = [
+  { severity = "warning", op = ">", threshold = "3" },
+  { severity = "info", op = ">", threshold = "2" },
+]
+message = "{home} is {home_share} of your stocks, {value} its {benchmark_share} weight in the world market."
+pass_message = "Your {home} stock share ({home_share}) is close to its world-market weight ({benchmark_share})."
+explanation = "Investors everywhere tend to hold far more of their home market than its share of the world economy, which concentrates risk in one country. The global market weight is a neutral starting point; a modest home tilt can be reasonable (costs, currency), a large one gives up diversification."
+threshold_note = "The research documents the bias but sets no limit; 2× and 3× are Jacklyn defaults. Benchmark weight from the iShares MSCI ACWI factsheet."
+citations = ["french_poterba_1991", "msci_acwi"]
+
+[[rule]]
+id = "region_deviation"
+title = "Region weight vs. world market"
+metric = "max_country_deviation"
+format = "points"
+levels = [{ severity = "info", op = ">", threshold = "0.10" }]
+message = "{country} is {share} of your stocks versus {benchmark_share} in MSCI ACWI ({value} apart)."
+pass_message = "Your country mix is within {threshold} of the world market for every listed country."
+explanation = "Holding the world market in proportion is the diversified default. Large deviations are active bets on one region, which may be deliberate but should be a conscious choice."
+threshold_note = "10 percentage points is a Jacklyn default. Only countries the benchmark source lists are compared."
+citations = ["markowitz_1952", "msci_acwi"]
+
+[[rule]]
+id = "sector_concentration"
+title = "Sector concentration"
+metric = "max_sector_overweight"
+format = "points"
+levels = [{ severity = "warning", op = ">", threshold = "0.10" }]
+message = "{sector} is {share} of your stocks versus {benchmark_share} in MSCI ACWI ({value} overweight)."
+pass_message = "No sector is more than {threshold} above its world-market weight."
+explanation = "A heavy tilt to one sector makes your portfolio depend on a single part of the economy. Sector names are mapped between Morningstar (Yahoo) and GICS (MSCI) classifications, so treat the numbers as approximate."
+threshold_note = "10 percentage points is a Jacklyn default."
+citations = ["markowitz_1952", "finra_concentration", "msci_acwi"]
+
+[[rule]]
+id = "fund_fees"
+title = "Fund costs"
+metric = "weighted_ter"
+format = "percent"
+levels = [
+  { severity = "warning", op = ">", threshold = "0.005" },
+  { severity = "good", op = "<", threshold = "0.0025" },
+]
+message = "Your funds cost {value} a year on average (value-weighted TER); above {threshold}."
+good_message = "Your funds cost {value} a year on average, below {threshold}."
+explanation = "Fees are taken every year whatever the market does, and they compound. Morningstar found the expense ratio to be the most dependable predictor of future fund performance: cheaper funds won more often."
+threshold_note = "0.50% and 0.25% are Jacklyn defaults; the sources show the effect, not a cut-off. Only funds with a known TER are included."
+citations = ["sec_fees", "morningstar_fees"]
+
+[[rule]]
+id = "allocation_drift"
+title = "Drift from your target allocation"
+metric = "max_allocation_drift"
+format = "multiple"
+levels = [{ severity = "warning", op = ">", threshold = "1" }]
+message = "{category} is {actual} against a target of {target}, outside its band of ±{band}."
+pass_message = "Every asset class is within its rebalancing band."
+explanation = "Over time, winners grow beyond their target and the portfolio's risk drifts away from what you chose. Vanguard found no single best schedule, but rebalancing when an allocation moves 5 percentage points away is a reasonable rule. Jacklyn also uses a 25% relative band so small targets get proportionate bands."
+threshold_note = "The 5-point band follows the Vanguard paper; the 25% relative band is a common practitioner rule (Swedroe's 5/25) that I could only verify in secondary sources."
+citations = ["vanguard_rebalancing"]
+
+[[rule]]
+id = "equity_vs_profile"
+title = "Stock share vs. your profile"
+metric = "equity_profile_gap"
+format = "points"
+levels = [{ severity = "warning", op = ">", threshold = "0.10" }]
+message = "Stocks are {actual} of your investments; your profile suggests about {suggested} ({value} apart)."
+pass_message = "Your stock share ({actual}) fits your profile's suggestion ({suggested})."
+explanation = "With a long horizon you can ride out downturns and keep more in stocks; as the date you need the money approaches, a growing bond share protects what you have. The suggestion follows Vanguard's target-date glide path, shifted by your stated risk tolerance."
+threshold_note = "10 percentage points is a Jacklyn default; the risk-tolerance shift is a Jacklyn convention."
+citations = ["vanguard_tdf"]
+
+[[rule]]
+id = "cash_drag"
+title = "Idle cash"
+metric = "excess_cash_share"
+format = "percent"
+levels = [{ severity = "info", op = ">", threshold = "0.05" }]
+message = "{excess} in cash beyond your emergency fund is {value} of your portfolio."
+explanation = "Cash you won't need soon earns little and loses purchasing power to inflation. Vanguard's research concludes most long-term investors are better served without cash in the investment portfolio; an emergency fund is a separate matter and is excluded here."
+threshold_note = "5% is a Jacklyn default."
+citations = ["vanguard_cash"]
+
+[[rule]]
+id = "broad_core"
+title = "Diversified core"
+metric = "broad_fund_share"
+format = "percent"
+levels = [{ severity = "good", op = ">=", threshold = "0.60" }]
+good_message = "{value} of your investments are in broad index funds that diversify on their own."
+explanation = "Broad index funds hold hundreds or thousands of companies, which removes most company-specific risk in one step."
+threshold_note = "60% is a Jacklyn default."
+citations = ["markowitz_1952", "statman_1987"]

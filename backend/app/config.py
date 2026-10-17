@@ -33,8 +33,9 @@ class Settings(BaseSettings):
     # Live market data (yfinance). Disable for offline use or tests.
     live_market_data: bool = True
     market_data_ttl_seconds: int = 900
-    # Optional free token from logo.dev for sharper company/issuer logos; without it, site icons are used.
-    logo_dev_token: str | None = None
+    # Optional free key from https://eulerpool.com/developers/register: real country mixes and full holdings
+    # for funds on the Health page. Without it, fund countries are estimated from the index a fund tracks.
+    eulerpool_token: str | None = None
 
     max_upload_mb: int = 20
 

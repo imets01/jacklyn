@@ -45,3 +45,7 @@ logs/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Personal notes, kept local
+docs/IDEAS.md
+docs/eulerpool-api.md

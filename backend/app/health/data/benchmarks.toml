@@ -1,0 +1,143 @@
+# Benchmarks and look-through mappings for the Portfolio Health page.
+# Update the weights from the cited factsheets when they change; keep `as_of` honest.
+
+[benchmark]
+name = "MSCI ACWI"
+description = "Large and mid caps across 23 developed and 24 emerging markets: the global equity market by market value."
+
+[benchmark.sectors]
+as_of = "2026-09-30"
+source_title = "MSCI ACWI Index (USD) factsheet"
+source_publisher = "MSCI"
+source_url = "https://www.msci.com/documents/10199/255599/msci-acwi-net.pdf"
+
+[benchmark.sectors.weights]
+"Information Technology" = "0.3321"
+"Financials" = "0.1617"
+"Industrials" = "0.1027"
+"Health Care" = "0.0842"
+"Consumer Discretionary" = "0.0824"
+"Communication Services" = "0.0801"
+"Consumer Staples" = "0.0451"
+"Energy" = "0.0396"
+"Materials" = "0.0351"
+"Utilities" = "0.0225"
+"Real Estate" = "0.0145"
+
+# MSCI's own factsheet lists only the top five countries, so the country detail comes from the factsheet
+# of an ETF that tracks the index. "Other" is not broken down by the source and is never used by a rule.
+[benchmark.countries]
+as_of = "2026-06-30"
+source_title = "iShares MSCI ACWI ETF fact sheet (geographic breakdown)"
+source_publisher = "BlackRock iShares"
+source_url = "https://www.ishares.com/us/literature/fact-sheet/acwi-ishares-msci-acwi-etf-fund-fact-sheet-en-us.pdf"
+
+[benchmark.countries.weights]
+"United States" = "0.6345"
+"Japan" = "0.0498"
+"Taiwan" = "0.0330"
+"United Kingdom" = "0.0303"
+"Canada" = "0.0293"
+"South Korea" = "0.0288"
+"China" = "0.0233"
+"France" = "0.0210"
+"Switzerland" = "0.0203"
+"Germany" = "0.0185"
+"Other" = "0.1112"
+
+# Yahoo Finance reports Morningstar-style sector names; MSCI uses GICS. The pairs below are close but not
+# identical classifications, so sector comparisons are labelled approximate.
+[sector_names]
+technology = "Information Technology"
+financial_services = "Financials"
+industrials = "Industrials"
+healthcare = "Health Care"
+consumer_cyclical = "Consumer Discretionary"
+communication_services = "Communication Services"
+consumer_defensive = "Consumer Staples"
+energy = "Energy"
+basic_materials = "Materials"
+utilities = "Utilities"
+realestate = "Real Estate"
+real_estate = "Real Estate"
+
+# Where the businesses behind an equity region earn and report, for the (approximate) currency view.
+[region_currencies]
+"United States" = "USD"
+"Switzerland" = "CHF"
+"Japan" = "JPY"
+"United Kingdom" = "GBP"
+"Canada" = "CAD"
+"France" = "EUR"
+"Germany" = "EUR"
+"Netherlands" = "EUR"
+"Spain" = "EUR"
+"Italy" = "EUR"
+"Hungary" = "HUF"
+"Ireland" = "EUR"
+"Belgium" = "EUR"
+"Austria" = "EUR"
+"Finland" = "EUR"
+"Portugal" = "EUR"
+"Luxembourg" = "EUR"
+"Liechtenstein" = "CHF"
+"Denmark" = "DKK"
+"Sweden" = "SEK"
+"Norway" = "NOK"
+"Australia" = "AUD"
+"Hong Kong" = "HKD"
+"Singapore" = "SGD"
+"Taiwan" = "TWD"
+"South Korea" = "KRW"
+"China" = "CNY"
+"India" = "INR"
+"Brazil" = "BRL"
+"Europe (broad, not split)" = "EUR"
+"Global (benchmark mix)" = "Mixed"
+
+# Fallback for funds without provider data (no Eulerpool key, or a fund Eulerpool doesn't know): countries are
+# approximated from the index a fund tracks, matched against its name (case-insensitive regex). First match
+# wins; `not_pattern` excludes. `broad` is used either way.
+# `countries = "benchmark"` means: spread like MSCI ACWI. `broad = true` marks a fund diversified on its own.
+[[index]]
+pattern = "all.?world|acwi|msci world|ftse developed world"
+label = "Global index (spread like MSCI ACWI)"
+broad = true
+countries = "benchmark"
+
+[[index]]
+pattern = "s&p 500|msci usa|total stock market|russell 3000"
+not_pattern = "sector"
+label = "Broad US index"
+broad = true
+countries = { "United States" = "1" }
+
+[[index]]
+pattern = "s&p 500|nasdaq.?100|msci usa|russell"
+label = "US index (narrow)"
+broad = false
+countries = { "United States" = "1" }
+
+[[index]]
+pattern = '\bjapan\b|topix|nikkei'
+label = "Japan index"
+broad = false
+countries = { "Japan" = "1" }
+
+[[index]]
+pattern = '\bspi\b|\bsmi\b|swiss|switzerland'
+label = "Swiss index"
+broad = false
+countries = { "Switzerland" = "1" }
+
+[[index]]
+pattern = "ftse 100|msci uk"
+label = "UK index"
+broad = false
+countries = { "United Kingdom" = "1" }
+
+[[index]]
+pattern = "stoxx europe 600|msci europe|ftse developed europe|euro stoxx"
+label = "Europe index (country split not available)"
+broad = true
+countries = { "Europe (broad, not split)" = "1" }

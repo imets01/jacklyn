@@ -8,8 +8,10 @@ import type {
   ChartResponse,
   ColumnMappingConfig,
   HistoryRange,
+  HealthReport,
   HistoryResponse,
   HoldingDetail,
+  InvestorProfile,
   HoldingsResponse,
   ImportCommitRequest,
   ImportCommitResult,
@@ -38,7 +40,7 @@ export const queryKeys = {
 }
 
 /** Everything that depends on ledger contents; invalidated after an import or account change. */
-const LEDGER_KEYS = ['summary', 'history', 'holdings', 'holding', 'accounts', 'account', 'transactions', 'import-logs']
+const LEDGER_KEYS = ['summary', 'history', 'holdings', 'holding', 'accounts', 'account', 'transactions', 'import-logs', 'health']
 
 export function useMe() {
   return useQuery({ queryKey: queryKeys.me, queryFn: () => api.get<User>('/api/me') })
@@ -237,5 +239,21 @@ export function useRefreshMarket() {
       window.setTimeout(() => void invalidateLedger(client), 5_000)
       return client.invalidateQueries({ queryKey: ['summary'] })
     },
+  })
+}
+
+export function useHealthReport(base: string, amount: string | null, includeCash: boolean) {
+  return useQuery({
+    queryKey: ['health', base, amount, includeCash] as const,
+    queryFn: () => api.get<HealthReport>('/api/health/report', { base, amount, include_cash: includeCash }),
+    placeholderData: keepPreviousData,
+  })
+}
+
+export function useSaveInvestorProfile() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (profile: InvestorProfile) => api.put<InvestorProfile>('/api/health/profile', profile),
+    onSuccess: () => client.invalidateQueries({ queryKey: ['health'] }),
   })
 }
