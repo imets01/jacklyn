@@ -182,6 +182,32 @@ class HoldingActivity(BaseModel):
     currency: str
 
 
+class WeightRow(BaseModel):
+    key: str
+    label: str
+    weight: Decimal
+    logo_url: str | None = None  # country flag, when cached
+
+
+class TopHolding(BaseModel):
+    key: str  # ISIN or ticker
+    name: str | None
+    weight: Decimal
+
+
+class FundComposition(BaseModel):
+    """What a fund holds, from the same data the Health page uses."""
+
+    countries: list[WeightRow]
+    countries_source: str
+    sectors: list[WeightRow]
+    sectors_source: str | None
+    asset_classes: list[WeightRow]
+    holdings: list[TopHolding]  # largest first
+    holdings_count: int | None  # total positions, when the full list is known
+    holdings_source: str | None
+
+
 class HoldingDetail(BaseModel):
     """One asset across all of the user's accounts."""
 
@@ -204,6 +230,7 @@ class HoldingDetail(BaseModel):
     weight: Decimal
     accounts: list[HoldingAccount]
     activity: list[HoldingActivity]  # newest first
+    composition: FundComposition | None = None  # funds only
 
 
 class ChartPoint(BaseModel):

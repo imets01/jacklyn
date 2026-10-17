@@ -5,9 +5,10 @@ import pytest
 from sqlalchemy.orm import Session
 
 from app.enums import AssetClass
+from app.health.composition import composition_logo_keys, fund_composition
 from app.health.config import load_benchmark
 from app.health.exposure import UNCLASSIFIED, PositionInput, build_exposure, overlaps
-from app.models import Asset
+from app.models import Asset, AssetLogo, AssetProfile
 from app.services import asset_info
 from app.services.eulerpool import (
     FundLookThrough,
@@ -15,6 +16,7 @@ from app.services.eulerpool import (
     fetch_fund,
     normalize_country,
     parse_countries,
+    parse_holding_names,
     parse_holdings,
 )
 
@@ -142,3 +144,59 @@ def test_company_country_fallback() -> None:
 
     assert fetch_company_country("HU0000123096", "k", transport=httpx.MockTransport(handler)) == "Hungary"
     assert fetch_company_country("bad", "k", transport=httpx.MockTransport(handler)) is None
+
+
+def test_holding_names_cover_only_the_largest() -> None:
+    payload = [{"isin": f"US00000000{i:02d}", "name": f"Company {i}", "percent": 100 - i} for i in range(40)]
+    holdings = parse_holdings(payload)
+    names = parse_holding_names(payload, holdings)
+    assert names is not None
+    assert len(names) == 25
+    assert names["US0000000000"] == "Company 0"
+
+
+def test_fund_composition_for_the_holding_page(db: Session) -> None:
+    etf = Asset(
+        symbol="MEUD",
+        currency="EUR",
+        isin="LU0908500753",
+        name="Amundi Core Stoxx Europe 600",
+        asset_class=AssetClass.ETF,
+    )
+    db.add(etf)
+    db.flush()
+    db.add(
+        AssetProfile(
+            asset_id=etf.id,
+            country_weights={"United Kingdom": "0.6", "Korea": "0.3", "Other": "0.1"},
+            sector_weights={"financial_services": "0.7", "technology": "0.3"},
+            class_weights={"stock": "0.98", "cash": "0.02"},
+            holdings={"NL0010273215": "0.05", "GB0005405286": "0.03"},
+            holding_names={"NL0010273215": "ASML HOLDING"},
+        )
+    )
+    db.add(AssetLogo(key="country:GB", data=b"png", content_type="image/png", source="test"))
+    db.flush()
+    profile = db.get(AssetProfile, etf.id)
+    assert profile is not None
+    assert composition_logo_keys(profile) == {"country:GB", "country:KR"}  # flags only, no company logos
+    composition = fund_composition(db, etf)
+    assert composition is not None
+    assert [(r.label, r.weight) for r in composition.countries] == [
+        ("United Kingdom", D("0.6000")),
+        ("South Korea", D("0.3000")),  # provider names are normalized
+        ("Not specified", D("0.1000")),  # the provider's "Other", last
+    ]
+    assert composition.countries[0].logo_url is not None
+    assert composition.countries[0].logo_url.startswith("/api/logos/country:GB?v=")
+    assert composition.countries[1].logo_url is None  # flag not downloaded yet: the UI shows initials
+    assert composition.countries_source.startswith("Eulerpool")
+    assert [r.label for r in composition.sectors] == ["Financials", "Information Technology"]
+    assert [(h.name, h.key) for h in composition.holdings] == [("ASML HOLDING", "NL0010273215"), (None, "GB0005405286")]
+    assert composition.holdings_count == 2
+    assert {r.label for r in composition.asset_classes} == {"Stocks", "Cash"}
+
+    stock = Asset(symbol="NESN", currency="CHF", asset_class=AssetClass.STOCK)
+    db.add(stock)
+    db.flush()
+    assert fund_composition(db, stock) is None

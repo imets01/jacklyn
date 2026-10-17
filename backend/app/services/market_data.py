@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import Settings, get_settings
 from app.enums import PriceSource
+from app.health.composition import composition_logo_keys
 from app.models import Account, Asset, AssetPrice, AssetProfile, FxRate, Transaction, User
 from app.services.asset_info import (
     logo_candidates,
@@ -278,6 +279,15 @@ class MarketDataService:
             for asset_id, key in chosen.items():
                 profiles[asset_id].logo_key = key
             stored += refresh_logos(session, {f"currency:{code}" for code in currencies})
+            # Flags and holding logos for the "What's inside" card on fund pages; shared, so fetched once.
+            extras: set[str] = set()
+            for asset_id, profile in profiles.items():
+                if asset_id in held_by_id:
+                    extras |= composition_logo_keys(profile)
+            # Holdings first (they're what people look at), then flags; one-time downloads, so a generous budget.
+            holding_keys = {key for key in extras if not key.startswith("country:")}
+            stored += refresh_logos(session, holding_keys, limit=200)
+            stored += refresh_logos(session, extras - holding_keys, limit=200)
             report.logos_fetched += stored
         except Exception as exc:  # noqa: BLE001 - logos are optional
             report.errors.append(f"logos: {exc}")

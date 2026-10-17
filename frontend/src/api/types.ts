@@ -183,6 +183,24 @@ export interface HoldingActivity {
   currency: string
 }
 
+export interface WeightRowOut {
+  key: string
+  label: string
+  weight: Ratio
+  logo_url: string | null
+}
+
+export interface FundComposition {
+  countries: WeightRowOut[]
+  countries_source: string
+  sectors: WeightRowOut[]
+  sectors_source: string | null
+  asset_classes: WeightRowOut[]
+  holdings: { key: string; name: string | null; weight: Ratio }[]
+  holdings_count: number | null
+  holdings_source: string | null
+}
+
 export interface HoldingDetail {
   base_currency: string
   as_of: ISODate
@@ -204,6 +222,7 @@ export interface HoldingDetail {
   accounts: HoldingAccount[]
   /** Newest first. */
   activity: HoldingActivity[]
+  composition: FundComposition | null
 }
 
 export interface ChartPoint {

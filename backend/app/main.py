@@ -20,7 +20,7 @@ from app.services.market_data import MarketDataService
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 CSRF_HEADER = "x-jacklyn-request"
-CACHEABLE_API = re.compile(r"/api/(assets/\d+|currencies/[A-Z]{3})/logo")
+CACHEABLE_API = re.compile(r"/api/((assets/\d+|currencies/[A-Z]{3})/logo|logos/[a-z]+:[A-Z0-9]+)")
 UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",

@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Path, Response, status
 from sqlalchemy import select
 
 from app.api.deps import BaseCurrency, CurrentUser, DbSession, MarketService
+from app.health.composition import fund_composition
 from app.models import Asset, AssetLogo, AssetProfile, Transaction, User
 from app.schemas.portfolio import ChartRange, ChartResponse, HoldingDetail
 from app.services.charts import INTRADAY, change, stored_chart, yahoo_chart
@@ -32,6 +33,8 @@ def holding_detail(asset_id: int, session: DbSession, user: CurrentUser, base: B
     detail = PortfolioEngine(session, user_id=user.id, base_currency=base).holding_detail(asset_id)
     if detail is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Asset not found.")
+    if (asset := session.get(Asset, asset_id)) is not None:
+        detail.composition = fund_composition(session, asset)
     return detail
 
 
@@ -74,6 +77,16 @@ def _image(logo: AssetLogo | None) -> Response:
         media_type=logo.content_type,
         headers={"Cache-Control": LOGO_CACHE, "Content-Security-Policy": "default-src 'none'; sandbox"},
     )
+
+
+@router.get("/api/logos/{key}", responses={200: {"content": {"image/svg+xml": {}}}})
+def shared_logo(
+    key: Annotated[str, Path(pattern=r"^(country:[A-Z]{2}|currency:[A-Z]{3})$")],
+    session: DbSession,
+    _user: CurrentUser,
+) -> Response:
+    """Country flags and currency badges: public reference images, served from the cache only."""
+    return _image(session.get(AssetLogo, key))
 
 
 @router.get("/api/currencies/{code}/logo", responses={200: {"content": {"image/svg+xml": {}}}})

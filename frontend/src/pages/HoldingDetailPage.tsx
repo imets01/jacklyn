@@ -7,6 +7,7 @@ import type { HoldingActivity, HoldingDetail, TransactionType } from '../api/typ
 import { BrokerAvatar } from '../components/accounts/AccountRow'
 import { AssetIcon } from '../components/assets/AssetIcon'
 import { AssetInfoCard } from '../components/holdings/AssetInfoCard'
+import { CompositionCard } from '../components/holdings/CompositionCard'
 import { PriceCard } from '../components/holdings/PriceCard'
 import { PageHeader } from '../components/layout/PageHeader'
 import { Delta } from '../components/ui/Delta'
@@ -209,6 +210,7 @@ export function HoldingDetailPage() {
           <PriceCard detail={detail} />
           <PositionTiles detail={detail} />
         </div>
+        {detail.composition ? <CompositionCard composition={detail.composition} /> : null}
         <div className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-2">
           <AssetInfoCard detail={detail} />
           <AccountsCard detail={detail} />

@@ -228,12 +228,16 @@ def fetch_fund_data(ticker: str) -> dict[str, dict[str, str] | None]:
     funds = load_yfinance().Ticker(ticker).funds_data
     top = getattr(funds, "top_holdings", None)
     top_weights: dict[str, Any] = {}
+    names: dict[str, str] = {}
     if top is not None and not top.empty and "Holding Percent" in top:
         top_weights = {str(symbol): value for symbol, value in top["Holding Percent"].items()}
+        if "Name" in top:
+            names = {str(symbol): str(name)[:120] for symbol, name in top["Name"].items() if isinstance(name, str)}
     return {
         "sectors": _weights(getattr(funds, "sector_weightings", None)),
         "classes": _weights(getattr(funds, "asset_classes", None), FUND_CLASS_KEYS),
         "top": _weights(top_weights),
+        "names": names or None,
     }
 
 
@@ -241,6 +245,7 @@ def apply_fund_data(profile: AssetProfile, data: dict[str, dict[str, str] | None
     profile.sector_weights = data.get("sectors")
     profile.class_weights = data.get("classes")
     profile.top_holdings = data.get("top")
+    profile.holding_names = {**(profile.holding_names or {}), **(data.get("names") or {})} or None
 
 
 def profile_is_stale(profile: AssetProfile | None, now: dt.datetime) -> bool:
@@ -257,6 +262,8 @@ def apply_eulerpool(profile: AssetProfile, isin: str, token: str) -> None:
     look_through = fetch_fund(isin, token)
     profile.country_weights = _as_strings(look_through.countries)
     profile.holdings = _as_strings(look_through.holdings)
+    if look_through.names:
+        profile.holding_names = {**(profile.holding_names or {}), **look_through.names}
 
 
 def refresh_profile(
@@ -403,6 +410,8 @@ def logo_sources(key: str) -> list[tuple[str, str]]:
             return [("elbstream", f"{ELBSTREAM}/commodity/{value}?size=128")]
         case "currency":
             return [("elbstream", f"{ELBSTREAM}/currency/{value}")]
+        case "country":
+            return [("elbstream", f"{ELBSTREAM}/country/{value}")]
         case "crypto":
             return [
                 ("elbstream", f"{ELBSTREAM}/crypto/{value}"),

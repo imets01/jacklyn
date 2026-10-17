@@ -44,14 +44,21 @@ ISO_COUNTRIES = {
     "NO": "Norway", "FI": "Finland", "PL": "Poland", "CZ": "Czech Republic", "HU": "Hungary", "GR": "Greece",
     "JP": "Japan", "CN": "China", "HK": "Hong Kong", "TW": "Taiwan", "KR": "South Korea", "SG": "Singapore",
     "IN": "India", "AU": "Australia", "NZ": "New Zealand", "IL": "Israel", "BR": "Brazil", "MX": "Mexico",
-    "ZA": "South Africa",
+    "ZA": "South Africa", "BM": "Bermuda", "KY": "Cayman Islands", "CL": "Chile", "CO": "Colombia", "CY": "Cyprus",
+    "EG": "Egypt", "IS": "Iceland", "ID": "Indonesia", "IM": "Isle of Man", "JE": "Jersey", "GG": "Guernsey",
+    "KW": "Kuwait", "MY": "Malaysia", "PH": "Philippines", "QA": "Qatar", "RO": "Romania", "SA": "Saudi Arabia",
+    "TH": "Thailand", "TR": "Turkey", "AE": "United Arab Emirates", "UY": "Uruguay", "PE": "Peru", "AR": "Argentina",
+    "VN": "Vietnam", "SK": "Slovakia", "SI": "Slovenia", "HR": "Croatia", "BG": "Bulgaria", "EE": "Estonia",
+    "LV": "Latvia", "LT": "Lithuania", "MT": "Malta", "MC": "Monaco", "PR": "Puerto Rico", "PA": "Panama",
 }  # fmt: skip
+COUNTRY_CODES = {name: code for code, name in ISO_COUNTRIES.items()}
 
 
 @dataclass(frozen=True)
 class FundLookThrough:
     countries: dict[str, Decimal] | None  # fractions; "Other" kept as the source's unspecified remainder
     holdings: dict[str, Decimal] | None  # ISIN (or symbol) -> fraction, largest MAX_HOLDINGS
+    names: dict[str, str] | None = None  # display names of the largest holdings, same keys
 
 
 def normalize_country(name: str) -> str:
@@ -87,6 +94,27 @@ def parse_countries(payload: Any) -> dict[str, Decimal] | None:
     return {name: weight / total for name, weight in countries.items()}
 
 
+NAMED_HOLDINGS = 25
+
+
+def _holding_key(row: dict[str, Any]) -> str | None:
+    isin, symbol = row.get("isin"), row.get("symbol")
+    key = isin if isinstance(isin, str) and _ISIN.fullmatch(isin) else symbol
+    return key if isinstance(key, str) and key else None
+
+
+def parse_holding_names(payload: Any, holdings: dict[str, Decimal] | None) -> dict[str, str] | None:
+    """Names for the largest holdings only: enough to list them, without storing thousands of strings."""
+    if not isinstance(payload, list) or not holdings:
+        return None
+    wanted = set(list(holdings)[:NAMED_HOLDINGS])
+    names: dict[str, str] = {}
+    for row in payload:
+        if isinstance(row, dict) and (key := _holding_key(row)) in wanted and isinstance(row.get("name"), str):
+            names[key] = row["name"].strip()[:120]
+    return names or None
+
+
 def parse_holdings(payload: Any) -> dict[str, Decimal] | None:
     if not isinstance(payload, list):
         return None
@@ -94,9 +122,7 @@ def parse_holdings(payload: Any) -> dict[str, Decimal] | None:
     for row in payload:
         if not isinstance(row, dict) or (weight := _fraction(row.get("percent"))) is None:
             continue
-        isin, symbol = row.get("isin"), row.get("symbol")
-        key = isin if isinstance(isin, str) and _ISIN.fullmatch(isin) else symbol
-        if isinstance(key, str) and key:
+        if key := _holding_key(row):
             holdings[key] = holdings.get(key, Decimal(0)) + weight
     if not holdings:
         return None
@@ -122,8 +148,9 @@ def fetch_fund(isin: str, token: str, *, transport: httpx.BaseTransport | None =
         return FundLookThrough(None, None)
     with _client(token, transport) as client:
         countries = parse_countries(_get(client, f"etf/countries/{isin}"))
-        holdings = parse_holdings(_get(client, f"etf/holdings/{isin}"))
-    return FundLookThrough(countries, holdings)
+        payload = _get(client, f"etf/holdings/{isin}")
+    holdings = parse_holdings(payload)
+    return FundLookThrough(countries, holdings, parse_holding_names(payload, holdings))
 
 
 def fetch_company_country(isin: str, token: str, *, transport: httpx.BaseTransport | None = None) -> str | None:

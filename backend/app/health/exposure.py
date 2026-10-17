@@ -114,7 +114,7 @@ def _normalize_sector(raw: str, benchmark: Benchmark) -> str:
     return benchmark.sector_names.get(key, UNCLASSIFIED)
 
 
-def _countries(position: PositionInput, benchmark: Benchmark) -> tuple[dict[str, Decimal], str, str | None]:
+def position_countries(position: PositionInput, benchmark: Benchmark) -> tuple[dict[str, Decimal], str, str | None]:
     """Country weights of a position's equity part, how they are known, and a note when estimated."""
     if not position.is_fund:
         if position.country:
@@ -134,7 +134,7 @@ def _countries(position: PositionInput, benchmark: Benchmark) -> tuple[dict[str,
     return mapping.countries, "estimated", note
 
 
-def _sectors(position: PositionInput, benchmark: Benchmark) -> dict[str, Decimal]:
+def position_sectors(position: PositionInput, benchmark: Benchmark) -> dict[str, Decimal]:
     if not position.is_fund:
         return (
             {_normalize_sector(position.sector, benchmark): Decimal(1)}
@@ -190,14 +190,14 @@ def build_exposure(positions: list[PositionInput], cash: dict[str, Decimal], ben
             categories[category] += position.value * weight
         equity_value = position.value * split.get("equity", ZERO)
         if equity_value:
-            country_weights, known, note = _countries(position, benchmark)
+            country_weights, known, note = position_countries(position, benchmark)
             quality[known] += equity_value
             if note:
                 notes.append(note)
             for country, weight in country_weights.items():
                 countries[country] += equity_value * weight
                 currencies[benchmark.region_currencies.get(country, "Other")] += equity_value * weight
-            for sector, weight in _sectors(position, benchmark).items():
+            for sector, weight in position_sectors(position, benchmark).items():
                 sectors[sector] += equity_value * weight
         non_equity = position.value - equity_value
         if non_equity:

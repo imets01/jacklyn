@@ -85,6 +85,7 @@ class AssetProfile(Base):
     # From Eulerpool when a key is configured: the fund's real country mix and its full holdings (ISIN -> weight).
     country_weights: Mapped[dict[str, str] | None] = mapped_column(JSON)
     holdings: Mapped[dict[str, str] | None] = mapped_column(JSON)
+    holding_names: Mapped[dict[str, str] | None] = mapped_column(JSON)  # names of the largest holdings
     fetched_at: Mapped[dt.datetime] = mapped_column(default=utcnow)
 
 
