@@ -3,13 +3,16 @@ import { useState } from 'react'
 import { useHoldings } from '../../api/hooks'
 import { combineCash } from '../../lib/holdings'
 import { formatMoney } from '../../lib/format'
+import { usePreferences } from '../../lib/preferences-context'
 import { CurrencyIcon } from '../assets/AssetIcon'
+import { Sensitive } from '../ui/Sensitive'
 
 const VISIBLE = 3
 
 /** Cash per currency, in each currency's own amount, under the Cash total. Largest balances first. */
 export function CashBreakdown({ currency, accountId }: { currency: string; accountId?: number }) {
   const holdings = useHoldings(currency, accountId)
+  const { hideAmounts } = usePreferences()
   const [expanded, setExpanded] = useState(false)
   const cash = combineCash(holdings.data?.cash ?? [])
   if (cash.length === 0) return null
@@ -22,10 +25,10 @@ export function CashBreakdown({ currency, accountId }: { currency: string; accou
           <li
             key={total.currency}
             className="flex min-w-0 items-center gap-2 text-xs"
-            title={total.currency !== currency ? `≈ ${formatMoney(total.value, currency)}` : undefined}
+            title={total.currency !== currency && !hideAmounts ? `≈ ${formatMoney(total.value, currency)}` : undefined}
           >
             <CurrencyIcon currency={total.currency} logoUrl={total.logoUrl} size="xs" />
-            <span className="truncate tabular font-medium text-ink-2">{formatMoney(total.amount, total.currency)}</span>
+            <span className="tabular font-medium text-ink-2"><Sensitive>{formatMoney(total.amount, total.currency)}</Sensitive></span>
           </li>
         ))}
       </ul>

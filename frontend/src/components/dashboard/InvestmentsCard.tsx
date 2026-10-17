@@ -8,6 +8,7 @@ import { formatMoney, formatPercent, formatPrice, formatQuantity } from '../../l
 import { AssetIcon } from '../assets/AssetIcon'
 import { Delta } from '../ui/Delta'
 import { Card, CardHeader, EmptyState, Spinner } from '../ui/primitives'
+import { Sensitive } from '../ui/Sensitive'
 
 const COLUMNS = 'grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 lg:grid-cols-[minmax(0,2.4fr)_1fr_1fr_1.3fr_1.1fr_16px]'
 
@@ -22,7 +23,7 @@ function PositionRow({ position, currency }: { position: Position; currency: str
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-ink">{holdingTitle(position)}</p>
           <p className="truncate text-xs text-ink-3 tabular">
-            {position.symbol} · {formatQuantity(String(position.quantity))} units
+            {position.symbol} · <Sensitive>{formatQuantity(String(position.quantity))}</Sensitive> units
             {position.accounts > 1 ? ` · ${position.accounts} accounts` : ''}
           </p>
         </div>
@@ -36,7 +37,7 @@ function PositionRow({ position, currency }: { position: Position; currency: str
         <p className="text-xs tabular text-ink-3">{formatPercent(position.unrealizedPnlPct, { signed: true })}</p>
       </div>
       <div className="text-right">
-        <p className="text-sm font-semibold tabular text-ink">{formatMoney(position.value, currency)}</p>
+        <p className="text-sm font-semibold tabular text-ink"><Sensitive>{formatMoney(position.value, currency)}</Sensitive></p>
         <Delta amount={position.unrealizedPnl} currency={currency} className="text-xs lg:hidden" />
         <p className="hidden text-xs tabular text-ink-3 lg:block">{formatPercent(position.weight, { digits: 1 })}</p>
       </div>

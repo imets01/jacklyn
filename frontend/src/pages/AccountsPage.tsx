@@ -13,6 +13,7 @@ import { groupByBroker } from '../lib/accounts'
 import { formatDate, formatMoney } from '../lib/format'
 import { usePreferences } from '../lib/preferences-context'
 import { QueryError } from './QueryError'
+import { Sensitive } from '../components/ui/Sensitive'
 
 function AccountCard({ account, currency }: { account: AccountSummary; currency: string }) {
   return (
@@ -30,9 +31,9 @@ function AccountCard({ account, currency }: { account: AccountSummary; currency:
           <AccountTypeBadge account={account} />
         </div>
         <div>
-          <p className="font-display text-2xl font-semibold text-ink">{formatMoney(account.value, currency)}</p>
+          <p className="font-display text-2xl font-semibold text-ink"><Sensitive>{formatMoney(account.value, currency)}</Sensitive></p>
           {account.currency !== currency && account.value_account_currency ? (
-            <p className="tabular text-xs text-ink-3">{formatMoney(account.value_account_currency, account.currency)}</p>
+            <p className="tabular text-xs text-ink-3"><Sensitive>{formatMoney(account.value_account_currency, account.currency)}</Sensitive></p>
           ) : null}
         </div>
         <div className="mt-auto flex flex-wrap items-center justify-between gap-2 text-xs">

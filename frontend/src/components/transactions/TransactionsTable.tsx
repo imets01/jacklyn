@@ -5,6 +5,7 @@ import { Link } from 'react-router'
 import type { TransactionPage, TransactionRow } from '../../api/types'
 import { formatDate, formatMoney, formatPrice, formatQuantity, TRANSACTION_TYPE_LABELS } from '../../lib/format'
 import { Badge, type BadgeTone } from '../ui/primitives'
+import { Sensitive } from '../ui/Sensitive'
 
 function typeTone(type: TransactionRow['type']): BadgeTone {
   if (type === 'buy' || type === 'deposit' || type === 'transfer_in') return 'accent'
@@ -65,15 +66,15 @@ export function TransactionsTable({
                     </Link>
                   </td>
                 ) : null}
-                <td className="px-3 py-3 text-right text-ink-2">{formatQuantity(tx.quantity)}</td>
+                <td className="px-3 py-3 text-right text-ink-2"><Sensitive>{formatQuantity(tx.quantity)}</Sensitive></td>
                 <td className="px-3 py-3 text-right text-ink-2">{tx.unit_price ? formatPrice(tx.unit_price, tx.currency) : '—'}</td>
                 <td className="px-6 py-3 text-right">
-                  <p className="text-ink">{tx.amount ? formatMoney(tx.amount, tx.currency) : '—'}</p>
+                  <p className="text-ink"><Sensitive>{tx.amount ? formatMoney(tx.amount, tx.currency) : '—'}</Sensitive></p>
                   {Number(tx.fee) || Number(tx.tax) ? (
                     <p className="text-xs text-ink-3">
-                      {Number(tx.fee) ? `fee ${formatMoney(tx.fee, tx.currency)}` : ''}
+                      <Sensitive>{Number(tx.fee) ? `fee ${formatMoney(tx.fee, tx.currency)}` : ''}</Sensitive>
                       {Number(tx.fee) && Number(tx.tax) ? ' · ' : ''}
-                      {Number(tx.tax) ? `tax ${formatMoney(tx.tax, tx.currency)}` : ''}
+                      <Sensitive>{Number(tx.tax) ? `tax ${formatMoney(tx.tax, tx.currency)}` : ''}</Sensitive>
                     </p>
                   ) : null}
                 </td>

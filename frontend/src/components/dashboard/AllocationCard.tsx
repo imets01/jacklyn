@@ -5,6 +5,7 @@ import type { AllocationSlice, Allocations } from '../../api/types'
 import { formatMoney, formatPercent, toNumber } from '../../lib/format'
 import { seriesVar, slotFor, type AllocationDimension } from '../../lib/palette'
 import { Card, CardHeader, SegmentedControl } from '../ui/primitives'
+import { Sensitive } from '../ui/Sensitive'
 
 const DIMENSIONS: { value: AllocationDimension; label: string }[] = [
   { value: 'asset_class', label: 'Asset class' },
@@ -58,7 +59,7 @@ export function AllocationCard({ allocations, currency }: { allocations: Allocat
             {active ? (
               <>
                 <span className="font-semibold text-ink">{formatPercent(active.weight, { digits: 1 })}</span> {active.label} ·{' '}
-                <span className="tabular">{formatMoney(active.value, currency)}</span>
+                <span className="tabular"><Sensitive>{formatMoney(active.value, currency)}</Sensitive></span>
               </>
             ) : (
               'Hover a segment for details'
@@ -80,7 +81,7 @@ export function AllocationCard({ allocations, currency }: { allocations: Allocat
           >
             <span className="size-2.5 shrink-0 rounded-[3px]" style={{ background: color(slice) }} aria-hidden />
             <span className="min-w-0 flex-1 truncate text-sm text-ink">{slice.label}</span>
-            <span className="tabular text-sm text-ink-2">{formatMoney(slice.value, currency)}</span>
+            <span className="tabular text-sm text-ink-2"><Sensitive>{formatMoney(slice.value, currency)}</Sensitive></span>
             <span className="w-14 text-right tabular text-sm font-semibold text-ink">
               {formatPercent(slice.weight, { digits: 1 })}
             </span>

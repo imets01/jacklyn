@@ -54,12 +54,12 @@ export function PriceCard({ detail }: { detail: HoldingDetail }) {
             Latest price{detail.price_date ? ` · ${formatDate(detail.price_date, 'short')}` : ''}
           </p>
           <div className="mt-2">
-            {detail.price ? <HeroFigure value={detail.price} currency={currency} /> : <p className="text-2xl text-ink-3">No price yet</p>}
+            {detail.price ? <HeroFigure value={detail.price} currency={currency} reveal /> : <p className="text-2xl text-ink-3">No price yet</p>}
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
             {chart.data?.change && range !== '1D' ? (
               <span className="inline-flex items-center gap-1.5">
-                <Delta amount={chart.data.change} pct={chart.data.change_pct} currency={currency} variant="pill" />
+                <Delta amount={chart.data.change} pct={chart.data.change_pct} currency={currency} variant="pill" reveal />
                 <span className="text-ink-3">{RANGE_LABELS[range]}</span>
               </span>
             ) : null}

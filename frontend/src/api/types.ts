@@ -465,6 +465,8 @@ export interface InvestorProfile {
   risk_tolerance: RiskLevel
   goal: string | null
   home_country: string
+  /** Currency the money amounts below are entered in. */
+  currency: string
   emergency_fund: Money | null
   monthly_contribution: Money | null
   min_order: Money

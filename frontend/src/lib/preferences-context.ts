@@ -10,6 +10,9 @@ export interface Preferences {
   setTheme: (theme: ThemePreference) => void
   baseCurrency: BaseCurrency
   setBaseCurrency: (currency: BaseCurrency) => void
+  /** Private mode: money amounts and quantities are masked everywhere. */
+  hideAmounts: boolean
+  setHideAmounts: (hide: boolean) => void
 }
 
 export const PreferencesContext = createContext<Preferences | null>(null)

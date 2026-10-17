@@ -17,6 +17,7 @@ class InvestorProfileIn(BaseModel):
     risk_tolerance: str = "balanced"
     goal: str | None = Field(default=None, max_length=40)
     home_country: str = Field(default="Switzerland", min_length=2, max_length=64)
+    currency: str = Field(default="CHF", pattern=r"^[A-Z]{3}$")  # of the money amounts below
     emergency_fund: Decimal | None = Field(default=None, ge=0)
     monthly_contribution: Decimal | None = Field(default=None, ge=0)
     min_order: Decimal = Field(default=Decimal(0), ge=0)

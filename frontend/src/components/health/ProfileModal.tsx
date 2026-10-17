@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from 'react'
 
 import { useSaveInvestorProfile } from '../../api/hooks'
-import { HEALTH_CATEGORIES, RISK_LEVELS, type HealthCategory, type InvestorProfile, type RiskLevel } from '../../api/types'
+import { BASE_CURRENCIES, HEALTH_CATEGORIES, RISK_LEVELS, type HealthCategory, type InvestorProfile, type RiskLevel } from '../../api/types'
 import { CATEGORY_LABELS, RISK_LABELS } from '../../lib/health'
+import { usePreferences } from '../../lib/preferences-context'
 import { Modal } from '../ui/Modal'
 import { Button, Field, Input, Notice, Select } from '../ui/primitives'
 
@@ -20,6 +21,8 @@ function ProfileForm({ profile, onClose }: { profile: InvestorProfile | null; on
   const [risk, setRisk] = useState<RiskLevel>(profile?.risk_tolerance ?? 'balanced')
   const [goal, setGoal] = useState(profile?.goal ?? 'Wealth building')
   const [home, setHome] = useState(profile?.home_country ?? 'Switzerland')
+  const { baseCurrency } = usePreferences()
+  const [currency, setCurrency] = useState(profile?.currency ?? baseCurrency)
   const [emergency, setEmergency] = useState(profile?.emergency_fund ?? '')
   const [monthly, setMonthly] = useState(profile?.monthly_contribution ?? '')
   const [minOrder, setMinOrder] = useState(profile && Number(profile.min_order) ? profile.min_order : '')
@@ -49,6 +52,7 @@ function ProfileForm({ profile, onClose }: { profile: InvestorProfile | null; on
         risk_tolerance: risk,
         goal,
         home_country: home,
+        currency,
         emergency_fund: emergency || null,
         monthly_contribution: monthly || null,
         min_order: minOrder || '0',
@@ -108,13 +112,20 @@ function ProfileForm({ profile, onClose }: { profile: InvestorProfile | null; on
             ))}
           </Select>
         </Field>
-        <Field label="Emergency fund" hint="Cash kept aside; not counted as idle.">
+        <Field label="Currency of the amounts below" hint="Converted automatically when you view another currency.">
+          <Select value={currency} onChange={(e) => setCurrency(e.target.value)}>
+            {(BASE_CURRENCIES as readonly string[]).includes(currency)
+              ? BASE_CURRENCIES.map((code) => <option key={code}>{code}</option>)
+              : [currency, ...BASE_CURRENCIES].map((code) => <option key={code}>{code}</option>)}
+          </Select>
+        </Field>
+        <Field label={`Emergency fund (${currency})`} hint="Cash kept aside; not counted as idle.">
           <Input type="number" min={0} step="any" value={emergency} onChange={(e) => setEmergency(e.target.value)} placeholder="0" />
         </Field>
-        <Field label="Monthly contribution" hint="Used by the rebalancing assistant.">
+        <Field label={`Monthly contribution (${currency})`} hint="Used by the rebalancing assistant.">
           <Input type="number" min={0} step="any" value={monthly} onChange={(e) => setMonthly(e.target.value)} placeholder="0" />
         </Field>
-        <Field label="Minimum order size" hint="Smaller orders are skipped.">
+        <Field label={`Minimum order size (${currency})`} hint="Smaller orders are skipped.">
           <Input type="number" min={0} step="any" value={minOrder} onChange={(e) => setMinOrder(e.target.value)} placeholder="0" />
         </Field>
         <label className="flex items-center gap-3 self-end rounded-2xl bg-surface-2 px-4 py-3 text-sm">

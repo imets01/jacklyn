@@ -4,6 +4,7 @@ import { CircleAlert, Columns3, FileSpreadsheet, Sparkles, TriangleAlert, X } fr
 import type { AccountSummary, ImportPreview } from '../../api/types'
 import { formatDate, formatMoney, formatPrice, formatQuantity, TRANSACTION_TYPE_LABELS } from '../../lib/format'
 import { Badge, Button, Card, Field, Notice, Select } from '../ui/primitives'
+import { Sensitive } from '../ui/Sensitive'
 
 const MAX_ROWS_SHOWN = 300
 
@@ -157,15 +158,15 @@ export function PreviewPanel({
                     <p className="truncate text-ink">{tx.symbol ?? tx.isin ?? tx.description ?? '—'}</p>
                     {tx.name ? <p className="truncate text-xs text-ink-3">{tx.name}</p> : null}
                   </td>
-                  <td className="px-3 py-2 text-right text-ink-2">{formatQuantity(tx.quantity)}</td>
+                  <td className="px-3 py-2 text-right text-ink-2"><Sensitive>{formatQuantity(tx.quantity)}</Sensitive></td>
                   <td className="px-3 py-2 text-right text-ink-2">{tx.unit_price ? formatPrice(tx.unit_price, tx.currency) : '—'}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-right text-ink">
-                    {tx.amount ? formatMoney(tx.amount, tx.currency) : '—'}
+                    <Sensitive>{tx.amount ? formatMoney(tx.amount, tx.currency) : '—'}</Sensitive>
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-right text-xs text-ink-3">
-                    {Number(tx.fee) ? formatMoney(tx.fee, tx.currency) : ''}
+                    <Sensitive>{Number(tx.fee) ? formatMoney(tx.fee, tx.currency) : ''}</Sensitive>
                     {Number(tx.fee) && Number(tx.tax) ? ' · ' : ''}
-                    {Number(tx.tax) ? formatMoney(tx.tax, tx.currency) : ''}
+                    <Sensitive>{Number(tx.tax) ? formatMoney(tx.tax, tx.currency) : ''}</Sensitive>
                   </td>
                   <td className="px-4 py-2">
                     {duplicate ? <Badge tone="warning">Already imported</Badge> : <Badge tone="positive">New</Badge>}

@@ -20,7 +20,9 @@ class InvestorProfile(Base):
     risk_tolerance: Mapped[str] = mapped_column(String(16), default="balanced")
     goal: Mapped[str | None] = mapped_column(String(40))
     home_country: Mapped[str] = mapped_column(String(64), default="Switzerland")
-    emergency_fund: Mapped[Decimal | None]  # in the user's base currency
+    # The currency the amounts below are entered in; reports convert them to whatever currency is viewed.
+    currency: Mapped[str] = mapped_column(String(3), default="CHF")
+    emergency_fund: Mapped[Decimal | None]
     monthly_contribution: Mapped[Decimal | None]
     min_order: Mapped[Decimal] = mapped_column(default=Decimal(0))
     fractional_shares: Mapped[bool] = mapped_column(default=True)

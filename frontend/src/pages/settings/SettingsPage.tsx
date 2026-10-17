@@ -23,6 +23,7 @@ export function SettingsPage() {
         title="Settings"
         subtitle="Your account, security and the people you share Jacklyn with."
         showMarket={false}
+        showCurrency={false}
         actions={
           <Button onClick={() => logout.mutate()} loading={logout.isPending}>
             <LogOut className="size-4" aria-hidden /> Sign out

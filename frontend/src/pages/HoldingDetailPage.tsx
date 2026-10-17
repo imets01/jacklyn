@@ -23,6 +23,7 @@ import {
 } from '../lib/format'
 import { usePreferences } from '../lib/preferences-context'
 import { QueryError } from './QueryError'
+import { Sensitive } from '../components/ui/Sensitive'
 
 function Tile({ label, value, detail }: { label: string; value: ReactNode; detail?: ReactNode }) {
   return (
@@ -41,17 +42,17 @@ function PositionTiles({ detail }: { detail: HoldingDetail }) {
     <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 sm:gap-4 xl:grid-cols-1">
       <Tile
         label="Market value"
-        value={formatMoney(detail.value, base)}
-        detail={local !== base ? <span className="tabular">{formatMoney(detail.value_local, local)}</span> : undefined}
+        value={<Sensitive>{formatMoney(detail.value, base)}</Sensitive>}
+        detail={local !== base ? <span className="tabular"><Sensitive>{formatMoney(detail.value_local, local)}</Sensitive></span> : undefined}
       />
       <Tile
         label="Unrealized P&L"
         value={<Delta amount={detail.unrealized_pnl} pct={detail.unrealized_pnl_pct} currency={base} />}
-        detail={<span className="tabular">cost basis {formatMoney(detail.cost_basis, base)}</span>}
+        detail={<span className="tabular">cost basis <Sensitive>{formatMoney(detail.cost_basis, base)}</Sensitive></span>}
       />
       <Tile
         label="Quantity"
-        value={<span className="tabular">{formatQuantity(detail.quantity)}</span>}
+        value={<span className="tabular"><Sensitive>{formatQuantity(detail.quantity)}</Sensitive></span>}
         detail={detail.avg_cost ? <span className="tabular">avg. buy price {formatPrice(detail.avg_cost, local)}</span> : undefined}
       />
       <Tile
@@ -81,10 +82,10 @@ function AccountsCard({ detail }: { detail: HoldingDetail }) {
               <BrokerAvatar broker={account.broker} className="size-9" />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-ink">{account.account_name}</p>
-                <p className="truncate text-xs text-ink-3 tabular">{formatQuantity(account.quantity)} units</p>
+                <p className="truncate text-xs text-ink-3 tabular"><Sensitive>{formatQuantity(account.quantity)}</Sensitive> units</p>
               </div>
               <div className="text-right">
-                <p className="text-sm font-semibold tabular text-ink">{formatMoney(account.value, base)}</p>
+                <p className="text-sm font-semibold tabular text-ink"><Sensitive>{formatMoney(account.value, base)}</Sensitive></p>
                 <Delta amount={account.unrealized_pnl} currency={base} className="text-xs" />
               </div>
               <ChevronRight className="size-4 shrink-0 text-ink-3 transition-transform group-hover:translate-x-0.5" aria-hidden />
@@ -135,11 +136,11 @@ function ActivityCard({ activity, assetId }: { activity: HoldingActivity[]; asse
                   <Badge tone={activityTone(tx.type)}>{TRANSACTION_TYPE_LABELS[tx.type]}</Badge>
                 </td>
                 <td className="max-w-[200px] truncate px-3 py-3 text-ink-2">{tx.account_name}</td>
-                <td className="px-3 py-3 text-right text-ink-2">{formatQuantity(tx.quantity)}</td>
+                <td className="px-3 py-3 text-right text-ink-2"><Sensitive>{formatQuantity(tx.quantity)}</Sensitive></td>
                 <td className="px-3 py-3 text-right text-ink-2">{tx.unit_price ? formatPrice(tx.unit_price, tx.currency) : '—'}</td>
                 <td className="px-6 py-3 text-right">
-                  <p className="text-ink">{tx.amount ? formatMoney(tx.amount, tx.currency) : '—'}</p>
-                  {Number(tx.fee) ? <p className="text-xs text-ink-3">fee {formatMoney(tx.fee, tx.currency)}</p> : null}
+                  <p className="text-ink"><Sensitive>{tx.amount ? formatMoney(tx.amount, tx.currency) : '—'}</Sensitive></p>
+                  {Number(tx.fee) ? <p className="text-xs text-ink-3">fee <Sensitive>{formatMoney(tx.fee, tx.currency)}</Sensitive></p> : null}
                 </td>
               </tr>
             ))}

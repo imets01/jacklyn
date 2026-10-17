@@ -6,6 +6,7 @@ import { PreferencesContext, type ThemePreference } from './preferences-context'
 
 const THEME_KEY = 'jacklyn.theme'
 const CURRENCY_KEY = 'jacklyn.baseCurrency'
+const PRIVATE_KEY = 'jacklyn.hideAmounts'
 
 function readStorage(key: string): string | null {
   try {
@@ -38,6 +39,7 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     const stored = readStorage(CURRENCY_KEY)
     return isBaseCurrency(stored) ? stored : null
   })
+  const [hideAmounts, setHideAmountsState] = useState(() => readStorage(PRIVATE_KEY) === 'true')
   const me = useMe()
   const { mutate: saveMe } = useUpdateMe()
   const serverCurrency = me.data?.base_currency
@@ -70,9 +72,14 @@ export function PreferencesProvider({ children }: { children: ReactNode }) {
     [saveMe],
   )
 
+  const setHideAmounts = useCallback((hide: boolean) => {
+    setHideAmountsState(hide)
+    writeStorage(PRIVATE_KEY, String(hide))
+  }, [])
+
   const value = useMemo(
-    () => ({ theme, resolvedTheme, setTheme, baseCurrency, setBaseCurrency }),
-    [theme, resolvedTheme, setTheme, baseCurrency, setBaseCurrency],
+    () => ({ theme, resolvedTheme, setTheme, baseCurrency, setBaseCurrency, hideAmounts, setHideAmounts }),
+    [theme, resolvedTheme, setTheme, baseCurrency, setBaseCurrency, hideAmounts, setHideAmounts],
   )
   return <PreferencesContext.Provider value={value}>{children}</PreferencesContext.Provider>
 }

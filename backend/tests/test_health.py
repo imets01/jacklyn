@@ -395,3 +395,27 @@ def test_profile_and_report_api(client: TestClient, make_user: Callable[..., Tes
     friend = make_user()
     assert friend.get("/api/health/profile").json() is None  # profiles are per user
     assert friend.get("/api/health/report").json()["has_holdings"] is False
+
+
+def test_report_is_the_same_in_every_viewing_currency(client: TestClient) -> None:
+    """Profile amounts are stored in their own currency and converted, so the verdict can't depend on the view."""
+    saved = client.put(
+        "/api/health/profile",
+        json={
+            "horizon_years": 30,
+            "currency": "CHF",
+            "emergency_fund": "20000",
+            "monthly_contribution": "1000",
+            "target_overrides": None,
+        },
+    )
+    assert saved.status_code == 200, saved.text
+    assert saved.json()["currency"] == "CHF"
+    reports = {base: client.get("/api/health/report", params={"base": base}).json() for base in ("CHF", "HUF", "USD")}
+    verdicts = {base: sorted((f["rule_id"], f["severity"]) for f in r["findings"]) for base, r in reports.items()}
+    assert verdicts["CHF"] == verdicts["HUF"] == verdicts["USD"]
+    assert reports["CHF"]["score"] == reports["HUF"]["score"]
+    chf, huf = (Decimal(reports[b]["rebalance"]["monthly_contribution"]) for b in ("CHF", "HUF"))
+    assert chf == 1000
+    assert huf > 100_000  # CHF 1,000 shown in forints, not 1,000 forints
+    assert client.put("/api/health/profile", json={"currency": "chf"}).status_code == 422

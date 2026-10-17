@@ -1,5 +1,5 @@
 import { clsx } from 'clsx'
-import { FileUp, HeartPulse, LayoutDashboard, LogOut, Monitor, Moon, ReceiptText, Settings, Sun, Wallet } from 'lucide-react'
+import { Eye, EyeOff, FileUp, HeartPulse, LayoutDashboard, LogOut, Monitor, Moon, ReceiptText, Settings, Sun, Wallet } from 'lucide-react'
 import { useEffect } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
 
@@ -45,6 +45,28 @@ function ThemeSwitch({ compact = false }: { compact?: boolean }) {
         </button>
       ))}
     </div>
+  )
+}
+
+/** Private mode: masks money amounts and quantities, e.g. for screenshots or showing the app to someone. */
+function PrivacyToggle() {
+  const { hideAmounts, setHideAmounts } = usePreferences()
+  const Icon = hideAmounts ? EyeOff : Eye
+  const label = hideAmounts ? 'Show amounts' : 'Hide amounts'
+  return (
+    <button
+      type="button"
+      aria-pressed={hideAmounts}
+      title={label}
+      onClick={() => setHideAmounts(!hideAmounts)}
+      className={clsx(
+        'grid size-9 shrink-0 place-items-center rounded-full transition-colors',
+        hideAmounts ? 'bg-accent-soft text-accent' : 'bg-surface-2 text-ink-3 hover:text-ink',
+      )}
+    >
+      <Icon className="size-4" aria-hidden />
+      <span className="sr-only">{label}</span>
+    </button>
   )
 }
 
@@ -113,8 +135,11 @@ export function AppShell() {
           ))}
         </nav>
         <div className="mt-auto flex flex-col gap-3">
-          <div className="px-2">
-            <ThemeSwitch />
+          <div className="flex items-center gap-2 px-2">
+            <div className="min-w-0 flex-1">
+              <ThemeSwitch />
+            </div>
+            <PrivacyToggle />
           </div>
           <UserCard />
         </div>
@@ -126,7 +151,10 @@ export function AppShell() {
           <LogoMark className="size-7" />
           <span className="font-display font-bold">Jacklyn</span>
         </div>
-        <ThemeSwitch compact />
+        <div className="flex items-center gap-2">
+          <PrivacyToggle />
+          <ThemeSwitch compact />
+        </div>
       </header>
 
       <main className="pb-24 lg:pb-12 lg:pl-60">

@@ -5,6 +5,7 @@ import { formatMoney } from '../../lib/format'
 import { Delta } from '../ui/Delta'
 import { CashBreakdown } from './CashBreakdown'
 import { Card } from '../ui/primitives'
+import { Sensitive } from '../ui/Sensitive'
 
 function Tile({ label, value, detail }: { label: string; value: ReactNode; detail?: ReactNode }) {
   return (
@@ -25,24 +26,24 @@ export function StatTiles({ summary }: { summary: PortfolioSummary }) {
         value={<Delta amount={summary.total_pnl} currency={currency} />}
         detail={
           <span className="tabular">
-            {formatMoney(summary.unrealized_pnl, currency, { signed: true })} open ·{' '}
-            {formatMoney(summary.realized_pnl, currency, { signed: true })} realized
+            <Sensitive>{formatMoney(summary.unrealized_pnl, currency, { signed: true })}</Sensitive> open ·{' '}
+            <Sensitive>{formatMoney(summary.realized_pnl, currency, { signed: true })}</Sensitive> realized
           </span>
         }
       />
       <Tile
         label="Net invested"
-        value={formatMoney(summary.net_contributions, currency)}
+        value={<Sensitive>{formatMoney(summary.net_contributions, currency)}</Sensitive>}
         detail="Deposits minus withdrawals, at historical FX"
       />
       <Tile
         label="Dividends & interest"
-        value={formatMoney(summary.income, currency)}
-        detail={<span className="tabular">after withholding · {formatMoney(summary.costs, currency)} fees &amp; taxes</span>}
+        value={<Sensitive>{formatMoney(summary.income, currency)}</Sensitive>}
+        detail={<span className="tabular">after withholding · <Sensitive>{formatMoney(summary.costs, currency)}</Sensitive> fees &amp; taxes</span>}
       />
       <Tile
         label="Cash"
-        value={formatMoney(summary.cash, currency)}
+        value={<Sensitive>{formatMoney(summary.cash, currency)}</Sensitive>}
         detail={<CashBreakdown currency={currency} />}
       />
     </div>

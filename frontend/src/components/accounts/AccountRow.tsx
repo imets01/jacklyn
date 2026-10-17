@@ -7,6 +7,7 @@ import type { AccountSummary } from '../../api/types'
 import { ACCOUNT_TYPE_LABELS, formatMoney, formatMonthYear } from '../../lib/format'
 import { Delta } from '../ui/Delta'
 import { Badge } from '../ui/primitives'
+import { Sensitive } from '../ui/Sensitive'
 
 export function BrokerAvatar({ broker, className }: { broker: string; className?: string }) {
   const initials = broker
@@ -80,14 +81,14 @@ export function AccountRow({ account, currency }: { account: AccountSummary; cur
         </div>
         <p className="mt-0.5 truncate text-xs text-ink-3">
           {account.broker} · {account.holdings_count} holdings
-          {account.currency !== currency && account.value_account_currency
+          <Sensitive>{account.currency !== currency && account.value_account_currency
             ? ` · ${formatMoney(account.value_account_currency, account.currency)}`
-            : ''}
+            : ''}</Sensitive>
         </p>
         <TbszProgress account={account} compact />
       </div>
       <div className="text-right">
-        <p className="tabular text-sm font-semibold text-ink">{formatMoney(account.value, currency)}</p>
+        <p className="tabular text-sm font-semibold text-ink"><Sensitive>{formatMoney(account.value, currency)}</Sensitive></p>
         <Delta amount={account.total_pnl} currency={currency} className="text-xs" />
       </div>
       <ChevronRight className="size-4 shrink-0 text-ink-3 transition-transform group-hover:translate-x-0.5" aria-hidden />

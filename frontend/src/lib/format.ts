@@ -1,4 +1,5 @@
 // Display-only formatting. Amounts stay strings (exact decimals) until this edge.
+// Private mode blurs personal figures where they are rendered (components/ui/Sensitive), not here.
 
 const ZERO_DECIMAL_CURRENCIES = new Set(['HUF', 'JPY', 'KRW', 'CLP', 'ISK'])
 
@@ -24,7 +25,11 @@ function formatter(key: string, options: Intl.NumberFormatOptions): Intl.NumberF
   return cached
 }
 
-export function formatMoney(value: string | number | null | undefined, currency: string, opts: { signed?: boolean } = {}): string {
+export function formatMoney(
+  value: string | number | null | undefined,
+  currency: string,
+  opts: { signed?: boolean } = {},
+): string {
   const digits = fractionDigits(currency)
   const f = formatter(`money:${currency}:${opts.signed ? 's' : ''}`, {
     style: 'currency',

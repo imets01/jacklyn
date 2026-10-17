@@ -1,12 +1,13 @@
 import { clsx } from 'clsx'
 import { CircleCheck, CircleAlert, ShoppingCart } from 'lucide-react'
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 
 import type { HealthReport, RebalancePlan } from '../../api/types'
 import { formatMoney, formatPercent, formatQuantity, toNumber } from '../../lib/format'
 import { AssetIcon } from '../assets/AssetIcon'
 import { Card, CardHeader, Field, Input } from '../ui/primitives'
 import { CitationList } from './Findings'
+import { Sensitive } from '../ui/Sensitive'
 
 function BandPill({ ok, label }: { ok: boolean; label: string }) {
   const Icon = ok ? CircleCheck : CircleAlert
@@ -22,12 +23,20 @@ function BandPill({ ok, label }: { ok: boolean; label: string }) {
   )
 }
 
-function monthsText(plan: RebalancePlan, currency: string): string {
+function monthsText(plan: RebalancePlan, currency: string): ReactNode {
   const monthly = toNumber(plan.monthly_contribution)
   if (plan.in_band_before) return 'Every asset class is already within its band.'
   if (monthly <= 0) return 'Add a monthly contribution to your profile to see how long contributions alone take.'
-  if (plan.months_to_band === null) return `At ${formatMoney(monthly, currency)} a month, contributions alone won't get back within the bands in 20 years.`
-  return `At ${formatMoney(monthly, currency)} a month, contributions alone bring every class back within its band in about ${plan.months_to_band} month${plan.months_to_band === 1 ? '' : 's'} (if prices stay put).`
+  const perMonth = <Sensitive>{formatMoney(monthly, currency)}</Sensitive>
+  if (plan.months_to_band === null) {
+    return <>At {perMonth} a month, contributions alone won&apos;t get back within the bands in 20 years.</>
+  }
+  return (
+    <>
+      At {perMonth} a month, contributions alone bring every class back within its band in about{' '}
+      {plan.months_to_band} month{plan.months_to_band === 1 ? '' : 's'} (if prices stay put).
+    </>
+  )
 }
 
 export function RebalanceCard({
@@ -72,7 +81,7 @@ export function RebalanceCard({
                 checked={includeCash}
                 onChange={(e) => onIncludeCashChange(e.target.checked)}
               />
-              Also invest idle cash ({formatMoney(idle, currency)})
+              Also invest idle cash (<Sensitive>{formatMoney(idle, currency)}</Sensitive>)
             </label>
           ) : null}
           <label className="ml-auto flex items-center gap-2 pb-2.5 text-sm text-ink-2">
@@ -108,7 +117,7 @@ export function RebalanceCard({
                     </td>
                     <td className="px-3 py-2.5 text-right text-ink-2">{formatPercent(row.after, { digits: 1 })}</td>
                     <td className="px-3 py-2.5 text-right font-semibold text-ink">
-                      {toNumber(row.buy) ? formatMoney(row.buy, currency) : '—'}
+                      <Sensitive>{toNumber(row.buy) ? formatMoney(row.buy, currency) : '—'}</Sensitive>
                     </td>
                     {showFull ? (
                       <td
@@ -117,7 +126,7 @@ export function RebalanceCard({
                           toNumber(row.full_rebalance) > 0 ? 'text-positive' : toNumber(row.full_rebalance) < 0 ? 'text-negative' : 'text-ink-3',
                         )}
                       >
-                        {toNumber(row.full_rebalance) ? formatMoney(row.full_rebalance, currency, { signed: true }) : '—'}
+                        <Sensitive>{toNumber(row.full_rebalance) ? formatMoney(row.full_rebalance, currency, { signed: true }) : '—'}</Sensitive>
                       </td>
                     ) : null}
                   </tr>
@@ -145,12 +154,22 @@ export function RebalanceCard({
                       {order.symbol ? (order.name ?? order.symbol) : `No ${order.category_label.toLowerCase()} holding yet`}
                     </p>
                     <p className="truncate text-xs text-ink-3">
-                      {order.symbol && order.quantity
-                        ? `${order.symbol} · ${formatQuantity(order.quantity)} shares${order.currency !== currency && order.local_amount ? ` · ${formatMoney(order.local_amount, order.currency ?? currency)}` : ''}`
-                        : `${order.category_label}: pick an instrument you'd like to hold`}
+                      {order.symbol && order.quantity ? (
+                        <>
+                          {order.symbol} ·{' '}
+                          <Sensitive>
+                            {formatQuantity(order.quantity)} shares
+                            {order.currency !== currency && order.local_amount
+                              ? ` · ${formatMoney(order.local_amount, order.currency ?? currency)}`
+                              : ''}
+                          </Sensitive>
+                        </>
+                      ) : (
+                        `${order.category_label}: pick an instrument you'd like to hold`
+                      )}
                     </p>
                   </div>
-                  <span className="shrink-0 text-sm font-semibold tabular text-ink">{formatMoney(order.amount, currency)}</span>
+                  <span className="shrink-0 text-sm font-semibold tabular text-ink"><Sensitive>{formatMoney(order.amount, currency)}</Sensitive></span>
                 </li>
               ))}
             </ul>
@@ -160,8 +179,8 @@ export function RebalanceCard({
           <p className="mt-3 text-xs text-ink-3">
             Picks the cheapest fund you already hold in each class (then the largest).{' '}
             {plan.fractional_shares ? 'Fractional shares allowed.' : 'Whole shares only.'}
-            {toNumber(plan.min_order) ? ` Minimum order ${formatMoney(plan.min_order, currency)}.` : ''}
-            {toNumber(plan.unspent) ? ` ${formatMoney(plan.unspent, currency)} stays uninvested.` : ''}
+            <Sensitive>{toNumber(plan.min_order) ? ` Minimum order ${formatMoney(plan.min_order, currency)}.` : ''}</Sensitive>
+            <Sensitive>{toNumber(plan.unspent) ? ` ${formatMoney(plan.unspent, currency)} stays uninvested.` : ''}</Sensitive>
           </p>
         </div>
 

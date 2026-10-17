@@ -3,6 +3,7 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YA
 
 import type { ChartPoint, ChartRange, HoldingActivity } from '../../api/types'
 import { formatCompactNumber, formatDate, formatPrice, formatQuantity, toNumber, TRANSACTION_TYPE_LABELS } from '../../lib/format'
+import { Sensitive } from '../ui/Sensitive'
 
 /** Buys, sells and transfers are marked on the line; income rows are not. */
 const MARKED_TYPES = new Set(['buy', 'sell', 'transfer_in', 'transfer_out'])
@@ -55,7 +56,7 @@ function PriceTooltip({
           <span className={isBuy(trade) ? 'font-semibold text-positive' : 'font-semibold text-negative'}>
             {TRANSACTION_TYPE_LABELS[trade.type]}
           </span>{' '}
-          {formatQuantity(trade.quantity)}
+          <Sensitive>{formatQuantity(trade.quantity)}</Sensitive>
           {trade.unit_price ? ` @ ${formatPrice(trade.unit_price, trade.currency)}` : ''}
           <span className="block text-ink-3">
             {formatDate(trade.date)} · {trade.account_name}

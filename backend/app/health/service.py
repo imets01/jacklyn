@@ -2,6 +2,7 @@
 
 import datetime as dt
 from collections import defaultdict
+from collections.abc import Callable
 from decimal import Decimal
 
 from sqlalchemy import select
@@ -234,13 +235,14 @@ def _rebalance(
     profile: InvestorProfile | None,
     amount: Decimal | None,
     include_idle_cash: bool,
+    to_base: Callable[[Decimal | None], Decimal],
 ) -> RebalanceOut | None:
     targets = ctx.targets
     if not targets:
         return None
-    monthly = (profile.monthly_contribution if profile else None) or ZERO
+    monthly = to_base(profile.monthly_contribution if profile else None)
     fractional = profile.fractional_shares if profile else True
-    min_order = profile.min_order if profile else ZERO
+    min_order = to_base(profile.min_order if profile else None)
     values = ctx.allocation()
     idle = values.get("cash", ZERO)
     budget = monthly if amount is None else amount
@@ -325,6 +327,14 @@ def build_report(
     exposure = build_exposure(positions, cash, benchmark)
 
     profile = session.get(InvestorProfile, user_id)
+
+    def to_base(value: Decimal | None) -> Decimal:
+        """Profile amounts are stored in the profile's currency; convert them to the currency being viewed."""
+        if not value or profile is None or profile.currency == base_currency:
+            return value or ZERO
+        converted = engine.fx.convert(value, profile.currency, base_currency, today)
+        return (converted or ZERO).quantize(Decimal("0.01"))
+
     horizon = effective_horizon(profile.horizon_years, profile.birth_year, today) if profile else None
     suggested = (
         suggested_equity(horizon, profile.risk_tolerance, rules.profile) if profile and horizon is not None else None
@@ -337,7 +347,7 @@ def build_report(
         benchmark=benchmark,
         base_currency=base_currency,
         home_country=profile.home_country if profile else "Switzerland",
-        emergency_fund=(profile.emergency_fund or ZERO) if profile else ZERO,
+        emergency_fund=to_base(profile.emergency_fund if profile else None),
         targets=targets,
         suggested_equity=suggested,
         absolute_band=rules.absolute_band,
@@ -414,7 +424,7 @@ def build_report(
             SourceOut(title=s.title, publisher=s.publisher, url=s.url, as_of=s.as_of)
             for s in (benchmark.sectors_source, benchmark.countries_source)
         ],
-        rebalance=_rebalance(ctx, positions, profile, amount, include_idle_cash),
+        rebalance=_rebalance(ctx, positions, profile, amount, include_idle_cash, to_base),
         rules=[
             RuleOut(
                 id=rule.id,

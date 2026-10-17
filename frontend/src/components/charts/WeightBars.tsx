@@ -2,6 +2,7 @@ import { Cell, Pie, PieChart, ResponsiveContainer } from 'recharts'
 
 import { formatMoney, formatPercent, toNumber } from '../../lib/format'
 import { seriesVar } from '../../lib/palette'
+import { usePreferences } from '../../lib/preferences-context'
 import type { WeightItem } from '../../lib/weights'
 import { AssetIcon } from '../assets/AssetIcon'
 
@@ -45,6 +46,7 @@ export function WeightBars({
   /** Show each row's flag or logo (initials when there is none yet). */
   icons?: boolean
 }) {
+  const { hideAmounts } = usePreferences()
   const max = Math.max(0.0001, ...rows.map((row) => Math.max(toNumber(row.weight), toNumber(row.compare ?? 0))))
   return (
     <ul className="flex min-w-0 flex-1 flex-col gap-3">
@@ -65,7 +67,10 @@ export function WeightBars({
                 ) : null}
                 <span className="truncate">{row.label}</span>
               </span>
-              <span className="shrink-0 tabular text-ink" title={currency && row.value ? formatMoney(row.value, currency) : undefined}>
+              <span
+                className="shrink-0 tabular text-ink"
+                title={currency && row.value && !hideAmounts ? formatMoney(row.value, currency) : undefined}
+              >
                 <span className="font-semibold">{formatPercent(weight, { digits: 1 })}</span>
                 {compare != null && compareLabel ? (
                   <span className="text-xs text-ink-3">

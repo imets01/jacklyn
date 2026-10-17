@@ -22,6 +22,7 @@ import {
 } from '../lib/format'
 import { usePreferences } from '../lib/preferences-context'
 import { QueryError } from './QueryError'
+import { Sensitive } from '../components/ui/Sensitive'
 
 function HoldingsTable({ accountId, currency }: { accountId: number; currency: string }) {
   const holdings = useHoldings(currency, accountId)
@@ -72,15 +73,15 @@ function HoldingsTable({ accountId, currency }: { accountId: number; currency: s
                   </span>
                 </Link>
               </td>
-              <td className="px-3 py-3 text-right text-ink-2">{formatQuantity(holding.quantity)}</td>
+              <td className="px-3 py-3 text-right text-ink-2"><Sensitive>{formatQuantity(holding.quantity)}</Sensitive></td>
               <td className="px-3 py-3 text-right text-ink-2">
                 {formatPrice(holding.price, holding.currency)}
                 <p className="text-xs text-ink-3">{formatDate(holding.price_date, 'short')}</p>
               </td>
               <td className="px-3 py-3 text-right">
-                <p className="font-semibold text-ink">{formatMoney(holding.value, currency)}</p>
+                <p className="font-semibold text-ink"><Sensitive>{formatMoney(holding.value, currency)}</Sensitive></p>
                 {holding.currency !== currency ? (
-                  <p className="text-xs text-ink-3">{formatMoney(holding.value_local, holding.currency)}</p>
+                  <p className="text-xs text-ink-3"><Sensitive>{formatMoney(holding.value_local, holding.currency)}</Sensitive></p>
                 ) : null}
               </td>
               <td className="px-3 py-3 text-right">
@@ -154,18 +155,18 @@ export function AccountDetailPage() {
             </Card>
             <Card className="px-5 py-4">
               <p className="text-[13px] font-medium text-ink-3">Net invested</p>
-              <p className="mt-2 font-display text-lg font-semibold text-ink">{formatMoney(data.net_contributions, baseCurrency)}</p>
+              <p className="mt-2 font-display text-lg font-semibold text-ink"><Sensitive>{formatMoney(data.net_contributions, baseCurrency)}</Sensitive></p>
             </Card>
             <Card className="px-5 py-4">
               <p className="text-[13px] font-medium text-ink-3">In account currency</p>
               <p className="mt-2 font-display text-lg font-semibold text-ink">
-                {data.value_account_currency ? formatMoney(data.value_account_currency, data.currency) : '—'}
+                <Sensitive>{data.value_account_currency ? formatMoney(data.value_account_currency, data.currency) : '—'}</Sensitive>
               </p>
             </Card>
             {data.track_cash ? (
               <Card className="px-5 py-4">
                 <p className="text-[13px] font-medium text-ink-3">Cash</p>
-                <p className="mt-2 font-display text-lg font-semibold text-ink">{formatMoney(data.cash, baseCurrency)}</p>
+                <p className="mt-2 font-display text-lg font-semibold text-ink"><Sensitive>{formatMoney(data.cash, baseCurrency)}</Sensitive></p>
                 <div className="mt-3">
                   <CashBreakdown currency={baseCurrency} accountId={id} />
                 </div>

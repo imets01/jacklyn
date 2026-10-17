@@ -13,6 +13,8 @@ import {
 
 import type { HistoryPoint, HistoryRange } from '../../api/types'
 import { formatCompactNumber, formatDate, formatMoney, formatMonthYear, toNumber } from '../../lib/format'
+import { usePreferences } from '../../lib/preferences-context'
+import { Sensitive } from '../ui/Sensitive'
 
 interface Datum {
   date: string
@@ -31,18 +33,18 @@ function ChartTooltip({ active, payload, currency }: TooltipContentProps<number,
       <p className="mb-2 text-xs font-medium text-ink-3">{formatDate(datum.date, 'long')}</p>
       <div className="flex items-center gap-2">
         <span className="h-0.5 w-3 rounded-full bg-[var(--chart-line)]" aria-hidden />
-        <span className="font-semibold tabular text-ink">{formatMoney(datum.rawValue, currency)}</span>
+        <span className="font-semibold tabular text-ink"><Sensitive>{formatMoney(datum.rawValue, currency)}</Sensitive></span>
         <span className="text-ink-3">Value</span>
       </div>
       <div className="mt-1 flex items-center gap-2">
         <span className="h-0.5 w-3 rounded-full bg-[var(--chart-muted)]" aria-hidden />
-        <span className="font-semibold tabular text-ink">{formatMoney(datum.rawInvested, currency)}</span>
+        <span className="font-semibold tabular text-ink"><Sensitive>{formatMoney(datum.rawInvested, currency)}</Sensitive></span>
         <span className="text-ink-3">Net invested</span>
       </div>
       <p className="mt-2 border-t border-line pt-2 text-xs text-ink-3">
         Gain vs invested{' '}
         <span className={gain >= 0 ? 'font-semibold text-positive' : 'font-semibold text-negative'}>
-          {formatMoney(gain, currency, { signed: true })}
+          <Sensitive>{formatMoney(gain, currency, { signed: true })}</Sensitive>
         </span>
       </p>
     </div>
@@ -61,6 +63,7 @@ export function PerformanceChart({
   height?: number
 }) {
   const gradientId = useId()
+  const { hideAmounts } = usePreferences()
   const data = useMemo<Datum[]>(
     () =>
       points.map((point) => ({
@@ -102,7 +105,7 @@ export function PerformanceChart({
             tickCount={5}
             domain={['auto', 'auto']}
             tick={{ fill: 'var(--chart-axis)', fontSize: 12, className: 'tabular' }}
-            tickFormatter={(value: number) => formatCompactNumber(value)}
+            tickFormatter={(value: number) => (hideAmounts ? '' : formatCompactNumber(value))}
           />
           <Tooltip
             cursor={{ stroke: 'var(--chart-axis)', strokeWidth: 1 }}
@@ -171,8 +174,8 @@ export function HistoryTable({ points, currency }: { points: HistoryPoint[]; cur
           {rows.map((point) => (
             <tr key={point.date} className="border-t border-line">
               <td className="px-4 py-2 text-ink-2">{formatDate(point.date)}</td>
-              <td className="px-4 py-2 text-right text-ink">{formatMoney(point.value, currency)}</td>
-              <td className="px-4 py-2 text-right text-ink-2">{formatMoney(point.invested, currency)}</td>
+              <td className="px-4 py-2 text-right text-ink"><Sensitive>{formatMoney(point.value, currency)}</Sensitive></td>
+              <td className="px-4 py-2 text-right text-ink-2"><Sensitive>{formatMoney(point.invested, currency)}</Sensitive></td>
             </tr>
           ))}
         </tbody>

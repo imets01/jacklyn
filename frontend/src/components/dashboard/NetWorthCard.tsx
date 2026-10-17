@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { useHistory } from '../../api/hooks'
 import type { HistoryRange, PortfolioSummary } from '../../api/types'
 import { moneyParts } from '../../lib/format'
+import { Sensitive } from '../ui/Sensitive'
 import { ChartLegend, HistoryTable, PerformanceChart } from '../charts/PerformanceChart'
 import { Delta } from '../ui/Delta'
 import { Card, SegmentedControl, Spinner } from '../ui/primitives'
@@ -27,13 +28,16 @@ const RANGE_LABELS: Record<HistoryRange, string> = {
   ALL: 'all time',
 }
 
-export function HeroFigure({ value, currency }: { value: string; currency: string }) {
+/** Big money figure. `reveal` keeps public numbers (like a share price) visible in private mode. */
+export function HeroFigure({ value, currency, reveal = false }: { value: string; currency: string; reveal?: boolean }) {
   const parts = moneyParts(value, currency)
   return (
     <p className="font-display text-[40px] font-bold leading-none tracking-tight text-ink sm:text-[52px]">
       <span className="mr-2 align-[0.32em] text-lg font-semibold text-ink-3 sm:text-xl">{parts.currency}</span>
-      {parts.integer}
-      <span className="text-ink-3">{parts.fraction}</span>
+      <Sensitive reveal={reveal}>
+        {parts.integer}
+        <span className="text-ink-3">{parts.fraction}</span>
+      </Sensitive>
     </p>
   )
 }
@@ -55,13 +59,14 @@ export function NetWorthCard({
 
   return (
     <Card className="overflow-hidden">
-      <div className="flex flex-col gap-5 px-6 pt-6 sm:flex-row sm:items-start sm:justify-between">
+      {/* The figure's width varies with currency and private mode; the controls never wrap or move because of it. */}
+      <div className="flex flex-col gap-5 px-6 pt-6 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
         <div>
           <p className="text-sm font-medium text-ink-3">{title}</p>
           <div className="mt-2">
             <HeroFigure value={summary.net_worth} currency={currency} />
           </div>
-          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+          <div className="mt-3 flex flex-col items-start gap-2 text-sm">
             {history.data ? (
               <span className="inline-flex items-center gap-1.5">
                 <Delta amount={history.data.change} pct={history.data.change_pct} currency={currency} variant="pill" />
@@ -74,7 +79,7 @@ export function NetWorthCard({
             </span>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2 self-start">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 self-start sm:flex-nowrap">
           <SegmentedControl label="Time range" size="sm" value={range} onChange={setRange} options={RANGES} />
           <SegmentedControl
             label="View"

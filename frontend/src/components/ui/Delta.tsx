@@ -2,6 +2,7 @@ import { clsx } from 'clsx'
 import { ArrowDownRight, ArrowUpRight, Minus } from 'lucide-react'
 
 import { formatMoney, formatPercent, trend } from '../../lib/format'
+import { Sensitive } from './Sensitive'
 
 /** Signed change. Direction is carried by icon + sign as well as color, never color alone. */
 export function Delta({
@@ -10,12 +11,15 @@ export function Delta({
   currency,
   variant = 'text',
   className,
+  reveal = false,
 }: {
   amount: string | number
   pct?: string | null
   currency: string
   variant?: 'text' | 'pill'
   className?: string
+  /** Market data (a price change), not the user's money: stays visible in private mode. */
+  reveal?: boolean
 }) {
   const direction = trend(amount)
   const Icon = direction === 'up' ? ArrowUpRight : direction === 'down' ? ArrowDownRight : Minus
@@ -34,7 +38,7 @@ export function Delta({
       )}
     >
       <Icon className="size-3.5 shrink-0" aria-hidden strokeWidth={2.5} />
-      {formatMoney(amount, currency, { signed: true })}
+      <Sensitive reveal={reveal}>{formatMoney(amount, currency, { signed: true })}</Sensitive>
       {pct !== undefined && pct !== null ? <span className="opacity-80">({formatPercent(pct, { signed: true })})</span> : null}
     </span>
   )

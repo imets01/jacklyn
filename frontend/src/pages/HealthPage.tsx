@@ -15,6 +15,7 @@ import { formatMoney, formatPercent, toNumber } from '../lib/format'
 import { CATEGORY_LABELS, RISK_LABELS } from '../lib/health'
 import { usePreferences } from '../lib/preferences-context'
 import { QueryError } from './QueryError'
+import { Sensitive } from '../components/ui/Sensitive'
 
 function useDebounced<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState(value)
@@ -58,12 +59,19 @@ function ProfileCard({ report, onEdit }: { report: HealthReport; onEdit: () => v
     report.horizon_years != null ? `${report.horizon_years} years horizon` : null,
     RISK_LABELS[profile.risk_tolerance].label,
     profile.goal,
-    profile.monthly_contribution ? `${formatMoney(profile.monthly_contribution, report.base_currency)} / month` : null,
   ].filter(Boolean)
   return (
     <Card className="flex flex-col gap-3 px-6 py-5 sm:flex-row sm:items-center">
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-ink-3">{facts.join(' · ')}</p>
+        <p className="text-sm font-medium text-ink-3">
+          {facts.join(' · ')}
+          {profile.monthly_contribution ? (
+            <>
+              {' · '}
+              <Sensitive>{formatMoney(profile.monthly_contribution, profile.currency)}</Sensitive> / month
+            </>
+          ) : null}
+        </p>
         <p className="mt-1 font-semibold text-ink">Target: {targetText(report.targets)}</p>
         <p className="mt-0.5 text-xs text-ink-3">
           {report.targets_source === 'manual' ? (
@@ -117,9 +125,9 @@ function PositionsCard({ report }: { report: HealthReport }) {
         </p>
         {weighted ? (
           <p className="text-xs text-ink-3">
-            ≈ {formatMoney(toNumber(weighted) * toNumber(report.ter.covered_value), report.base_currency)} a year on{' '}
-            {formatMoney(report.ter.covered_value, report.base_currency)} in funds
-            {toNumber(report.ter.uncovered_value) ? `; TER unknown for ${formatMoney(report.ter.uncovered_value, report.base_currency)}` : ''}.
+            ≈ <Sensitive>{formatMoney(toNumber(weighted) * toNumber(report.ter.covered_value), report.base_currency)}</Sensitive> a year on{' '}
+            <Sensitive>{formatMoney(report.ter.covered_value, report.base_currency)}</Sensitive> in funds
+            <Sensitive>{toNumber(report.ter.uncovered_value) ? `; TER unknown for ${formatMoney(report.ter.uncovered_value, report.base_currency)}` : ''}</Sensitive>.
           </p>
         ) : null}
         {report.overlaps.length ? (
