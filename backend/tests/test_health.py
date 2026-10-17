@@ -355,6 +355,10 @@ def test_profile_and_report_api(client: TestClient, make_user: Callable[..., Tes
     assert report["has_holdings"] is True
     assert {"asset_class", "country", "sector", "currency", "issuer"} <= set(report["breakdowns"])
     assert all(f["citations"] for f in report["findings"])
+    country_rows = {row["label"]: row["compare"] for row in report["breakdowns"]["country"]["slices"]}
+    assert not any("benchmark mix" in label for label in country_rows)  # the source's lump isn't a row
+    assert country_rows.get("Other countries (in global funds)") is None  # shown without a comparison
+    assert "isn't broken down" in report["breakdowns"]["country"]["note"]
 
     assert client.put("/api/health/profile", json={"risk_tolerance": "yolo"}).status_code == 422
     bad_targets = {"horizon_years": 20, "target_overrides": {"equity": "0.5", "bonds": "0.2"}}

@@ -36,6 +36,7 @@ from app.schemas.health import (
     SourceOut,
     TerSummary,
 )
+from app.services.eulerpool import normalize_country
 from app.services.portfolio import PortfolioEngine
 
 ZERO = Decimal(0)
@@ -46,6 +47,17 @@ def _decimal_map(raw: dict[str, str] | None) -> dict[str, Decimal] | None:
     if not raw:
         return None
     return {key: Decimal(str(value)) for key, value in raw.items()}
+
+
+def _country_map(raw: dict[str, str] | None) -> dict[str, Decimal] | None:
+    """Stored provider countries, with names normalized again so older rows match current naming."""
+    weights = _decimal_map(raw)
+    if not weights:
+        return None
+    merged: dict[str, Decimal] = defaultdict(Decimal)
+    for name, weight in weights.items():
+        merged[normalize_country(name)] += weight
+    return dict(merged)
 
 
 def _citation(citation: Citation) -> CitationOut:
@@ -88,7 +100,7 @@ def load_positions(session: Session, engine: PortfolioEngine) -> tuple[list[Posi
             position.sector_weights = _decimal_map(profile.sector_weights)
             position.class_weights = _decimal_map(profile.class_weights)
             position.top_holdings = _decimal_map(profile.top_holdings)
-            position.country_weights = _decimal_map(profile.country_weights)
+            position.country_weights = _country_map(profile.country_weights)
             position.holdings = _decimal_map(profile.holdings)
     cash: dict[str, Decimal] = defaultdict(Decimal)
     for balance in holdings.cash:
@@ -136,11 +148,15 @@ def _breakdown(
     return Breakdown(title=title, compare_label=compare_label, slices=slices, note=note)
 
 
-def _country_note(exposure: Exposure) -> str:
+def _country_note(exposure: Exposure, benchmark_rest: Decimal) -> str:
     estimated = exposure.country_quality.get("estimated", ZERO)
-    if not estimated:
-        return "Countries as reported: company headquarters for stocks, fund holdings data for funds."
-    return "Some funds' countries are estimated from the index they track; see the data notes."
+    source = (
+        "Countries as reported: company headquarters for stocks, fund holdings data for funds."
+        if not estimated
+        else "Some funds' countries are estimated from the index they track; see the data notes."
+    )
+    rest = f"{benchmark_rest * 100:.1f}%"
+    return f"{source} The benchmark source lists its 10 largest countries; the other {rest} isn't broken down."
 
 
 def _breakdowns(exposure: Exposure, ctx: HealthContext) -> dict[str, Breakdown]:
@@ -148,7 +164,9 @@ def _breakdowns(exposure: Exposure, ctx: HealthContext) -> dict[str, Breakdown]:
     allocation = ctx.allocation()
     target_compare = dict(ctx.targets) if ctx.targets else None
     countries = dict(exposure.countries)
-    bench_countries = {(BENCHMARK_OTHER if k == "Other" else k): v for k, v in benchmark.countries.items()}
+    # The source lumps everything below its top 10 countries into "Other"; that lump can't be compared with
+    # anything of yours, so it is described in the note instead of drawn as a row.
+    bench_countries = {k: v for k, v in benchmark.countries.items() if k != "Other"}
     return {
         "asset_class": _breakdown(
             "Asset class",
@@ -160,10 +178,10 @@ def _breakdowns(exposure: Exposure, ctx: HealthContext) -> dict[str, Breakdown]:
         ),
         "country": _breakdown(
             "Country (stocks)",
-            countries,
+            {("Other countries (in global funds)" if k == BENCHMARK_OTHER else k): v for k, v in countries.items()},
             bench_countries,
             benchmark.name,
-            note=_country_note(exposure),
+            note=_country_note(exposure, benchmark.countries.get("Other", ZERO)),
             classified_only=True,
         ),
         "sector": _breakdown(

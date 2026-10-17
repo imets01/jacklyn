@@ -26,6 +26,7 @@ def test_country_names_are_normalized() -> None:
     assert normalize_country("Korea (the Republic of)") == "South Korea"
     assert normalize_country("Netherlands (the)") == "Netherlands"
     assert normalize_country("Switzerland") == "Switzerland"
+    assert normalize_country("Korea") == "South Korea"
 
 
 def test_parse_countries_converts_percent_and_rejects_incomplete_data() -> None:

@@ -1,12 +1,42 @@
 import { useState } from 'react'
 import { Cell, Pie, PieChart, ResponsiveContainer } from 'recharts'
 
-import type { HealthBreakdown, HealthReport } from '../../api/types'
+import type { HealthBreakdown, HealthReport, HealthSlice } from '../../api/types'
 import { formatMoney, formatPercent, toNumber } from '../../lib/format'
 import { seriesVar } from '../../lib/palette'
 import { Card, SegmentedControl } from '../ui/primitives'
 
 type Dimension = keyof HealthReport['breakdowns']
+
+const MIN_WEIGHT = 0.005 // rows below 0.5% (and not compared with anything sizable) fold into one
+const MAX_ROWS = 12
+const NOUNS: Record<Dimension, string> = {
+  asset_class: 'classes',
+  country: 'countries',
+  sector: 'sectors',
+  currency: 'currencies',
+  issuer: 'providers',
+}
+
+/** The meaningful slices, with the long tail of tiny ones summed into a single "N other …" row. */
+function foldSmallSlices(breakdown: HealthBreakdown, noun: string): HealthBreakdown {
+  const keep: HealthSlice[] = []
+  const rest: HealthSlice[] = []
+  for (const slice of breakdown.slices) {
+    const matters = toNumber(slice.weight) >= MIN_WEIGHT || toNumber(slice.compare ?? 0) >= 0.01
+    if (matters && keep.length < MAX_ROWS) keep.push(slice)
+    else rest.push(slice)
+  }
+  if (rest.length < 2) return { ...breakdown, slices: [...keep, ...rest] }
+  const folded: HealthSlice = {
+    key: '__rest',
+    label: `${rest.length} other ${noun}`,
+    value: String(rest.reduce((sum, slice) => sum + toNumber(slice.value), 0)),
+    weight: String(rest.reduce((sum, slice) => sum + toNumber(slice.weight), 0)),
+    compare: null,
+  }
+  return { ...breakdown, slices: [...keep, folded] }
+}
 
 const TABS: { value: Dimension; label: string }[] = [
   { value: 'asset_class', label: 'Asset class' },
@@ -91,26 +121,21 @@ function ComparisonRows({ breakdown, currency, colored }: { breakdown: HealthBre
 
 export function BreakdownCard({ report }: { report: HealthReport }) {
   const [tab, setTab] = useState<Dimension>('asset_class')
-  const breakdown = report.breakdowns[tab]
+  const breakdown = foldSmallSlices(report.breakdowns[tab], NOUNS[tab])
   const donut = tab === 'asset_class' || tab === 'currency' || tab === 'issuer'
   return (
     <Card className="flex flex-col gap-5 px-6 py-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-[15px] font-semibold text-ink">Breakdown</h2>
-          <p className="mt-0.5 text-sm text-ink-3">
-            {breakdown.compare_label ? (
-              <>
-                Bars are you, the dark marker is {breakdown.compare_label === 'Target' ? 'your target' : breakdown.compare_label}.
-              </>
-            ) : (
-              'Your portfolio.'
-            )}
-          </p>
-        </div>
+      <div className="flex flex-col gap-3">
+        <h2 className="text-[15px] font-semibold text-ink">Breakdown</h2>
+        {/* Tabs on their own row so they stay put whatever the description below says. */}
         <div className="max-w-full overflow-x-auto">
           <SegmentedControl label="Breakdown" size="sm" value={tab} onChange={setTab} options={TABS} />
         </div>
+        <p className="text-sm text-ink-3">
+          {breakdown.compare_label
+            ? `Bars are you, the dark marker is ${breakdown.compare_label === 'Target' ? 'your target' : breakdown.compare_label}.`
+            : 'Your portfolio; there is no benchmark for this view.'}
+        </p>
       </div>
       {breakdown.slices.length ? (
         <div className="flex flex-col gap-6 sm:flex-row sm:items-center">

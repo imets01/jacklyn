@@ -23,6 +23,7 @@ COUNTRY_NAMES = {
     "United Kingdom of Great Britain and Northern Ireland": "United Kingdom",
     "United States of America": "United States",
     "Korea (the Republic of)": "South Korea",
+    "Korea": "South Korea",
     "Korea, Republic of": "South Korea",
     "Taiwan (Province of China)": "Taiwan",
     "Netherlands (Kingdom of the)": "Netherlands",
