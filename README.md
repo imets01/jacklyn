@@ -79,7 +79,11 @@ Jacklyn is built to be shared with a few trusted people without exposing your se
   two identical trades in one file both survive). Rows carrying a broker ID are also matched on it.
   Re-importing a file or an overlapping date range is always safe.
 - **Ingestion is decoupled from uploads**: `ingest_transactions()` takes `StandardTransaction`s from any
-  producer — the seeder, file imports and the IBKR Flex client (`services/sync/ibkr_flex.py`) all use it.
+  producer — the seeder, file imports and the IBKR Flex sync (`services/sync/`) all use it.
+- **IBKR sync**: connect a read-only Flex token + query ID on the Import page. "Sync now" and a daily
+  auto-sync fetch one Flex statement and route each IBKR account (U-number) to the Jacklyn account with that
+  broker account ID; unknown accounts are listed for linking. The token is encrypted at rest and never
+  returned by the API.
 - **Money is never a float**: `Decimal` everywhere in Python; `NUMERIC(28,10)` on PostgreSQL and exact
   text storage on SQLite (whose NUMERIC silently degrades to REAL). Floats are rejected at the column level.
 - **Multi-user**: every user-owned table has `user_id`, and every API query is scoped to the signed-in user
@@ -120,6 +124,7 @@ Jacklyn is built to be shared with a few trusted people without exposing your se
 | GET | `/api/import/logs` | Import history |
 | GET/POST/DELETE | `/api/mappings` | Saved column-mapper presets (auto-applied by header signature) |
 | POST | `/api/market/refresh` | Force a quote/FX refresh |
+| GET/PUT/DELETE | `/api/sync/ibkr` · POST `/api/sync/ibkr/run` | IBKR Flex connection (token write-only); start a background sync |
 | GET/PATCH | `/api/me` | Signed-in user & base currency |
 
 ## Repository layout

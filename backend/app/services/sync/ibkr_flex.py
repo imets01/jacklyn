@@ -1,8 +1,8 @@
 """IBKR Flex Web Service client (read-only Flex token + Query ID).
 
 Flow: SendRequest returns a reference code, then GetStatement is polled until the statement
-is generated. The XML goes through the same IBKRFlexXMLParser as a manual upload and then into
-the shared ingestion pipeline, so API syncs dedupe against file imports.
+is generated. `service.run_sync` parses it with the same IBKRFlexXMLParser as a manual upload and
+feeds the shared ingestion pipeline, so API syncs dedupe against file imports.
 """
 
 import time
@@ -10,18 +10,12 @@ from dataclasses import dataclass
 
 import httpx
 from defusedxml import ElementTree
-from sqlalchemy.orm import Session
-
-from app.enums import ImportSource
-from app.parsers.base import ParseResult
-from app.parsers.ibkr import IBKRFlexXMLParser
-from app.parsers.source import SourceFile
-from app.services.ingestion import IngestOutcome, ingest_transactions
 
 FLEX_BASE_URL = "https://ndcdyn.interactivebrokers.com/AccountManagement/FlexWebService"
 FLEX_VERSION = "3"
 # 1019: statement generation in progress; 1018: too many requests. Both are worth retrying.
 RETRYABLE_CODES = {"1018", "1019"}
+NOT_FLEX = "IBKR sent something that isn't a Flex statement. Check the query ID and that its format is XML."
 
 
 class FlexError(RuntimeError):
@@ -60,13 +54,11 @@ class IBKRFlexClient:
             if http is None:
                 client.close()
 
-    def fetch(self, http: httpx.Client | None = None) -> ParseResult:
-        content = self.fetch_statement(http)
-        return IBKRFlexXMLParser().run(SourceFile("ibkr-flex.xml", content))
-
     @staticmethod
     def _parse_send_response(content: bytes) -> tuple[str, str]:
         root = ElementTree.fromstring(content)
+        if root.tag != "FlexStatementResponse":
+            raise FlexError(NOT_FLEX)
         if (root.findtext("Status") or "").strip() != "Success":
             code = (root.findtext("ErrorCode") or "?").strip()
             raise FlexError(f"IBKR Flex error {code}: {(root.findtext('ErrorMessage') or '').strip()}")
@@ -83,19 +75,3 @@ class IBKRFlexClient:
         except ElementTree.ParseError as exc:
             raise FlexError("Unexpected response from IBKR Flex Web Service.") from exc
         return (root.findtext("ErrorCode") or "").strip(), (root.findtext("ErrorMessage") or "").strip()
-
-
-def sync_ibkr_account(
-    session: Session, *, user_id: int, account_id: int, client: IBKRFlexClient, http: httpx.Client | None = None
-) -> tuple[ParseResult, IngestOutcome]:
-    result = client.fetch(http)
-    outcome = ingest_transactions(
-        session,
-        user_id=user_id,
-        account_id=account_id,
-        transactions=result.transactions,
-        source=ImportSource.API_SYNC,
-        parser_key=result.parser_key,
-        message=f"{len(result.errors)} rows could not be parsed" if result.errors else None,
-    )
-    return result, outcome

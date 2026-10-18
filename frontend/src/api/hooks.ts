@@ -1,4 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useRef } from 'react'
 
 import { api } from './client'
 import type {
@@ -13,6 +14,8 @@ import type {
   HoldingDetail,
   InvestorProfile,
   HoldingsResponse,
+  IbkrConnection,
+  IbkrConnectionIn,
   ImportCommitRequest,
   ImportCommitResult,
   ImportLog,
@@ -37,6 +40,7 @@ export const queryKeys = {
   transactions: (filters: TransactionFilters, page: number) => ['transactions', filters, page] as const,
   importLogs: ['import-logs'] as const,
   mappings: ['mappings'] as const,
+  ibkr: ['ibkr-sync'] as const,
 }
 
 /** Everything that depends on ledger contents; invalidated after an import or account change. */
@@ -255,5 +259,49 @@ export function useSaveInvestorProfile() {
   return useMutation({
     mutationFn: (profile: InvestorProfile) => api.put<InvestorProfile>('/api/health/profile', profile),
     onSuccess: () => client.invalidateQueries({ queryKey: ['health'] }),
+  })
+}
+
+/** The IBKR Flex connection; polls while a sync runs and refreshes the ledger once it finishes. */
+export function useIbkrConnection() {
+  const client = useQueryClient()
+  const query = useQuery({
+    queryKey: queryKeys.ibkr,
+    queryFn: () => api.get<IbkrConnection | null>('/api/sync/ibkr'),
+    refetchInterval: (current) => (current.state.data?.running ? 2000 : false),
+  })
+  const running = query.data?.running ?? false
+  const wasRunning = useRef(running)
+  useEffect(() => {
+    if (wasRunning.current && !running) void invalidateLedger(client)
+    wasRunning.current = running
+  }, [running, client])
+  return query
+}
+
+export function useSaveIbkrConnection() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (connection: IbkrConnectionIn) => api.put<IbkrConnection>('/api/sync/ibkr', connection),
+    onSuccess: (connection) => client.setQueryData(queryKeys.ibkr, connection),
+  })
+}
+
+export function useDeleteIbkrConnection() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: () => api.delete<null>('/api/sync/ibkr'),
+    onSuccess: () => client.setQueryData(queryKeys.ibkr, null),
+  })
+}
+
+export function useRunIbkrSync() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: () => api.post<IbkrConnection>('/api/sync/ibkr/run'),
+    onSuccess: (connection) => {
+      client.setQueryData(queryKeys.ibkr, connection)
+      if (!connection.running) void invalidateLedger(client)
+    },
   })
 }

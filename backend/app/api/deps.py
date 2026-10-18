@@ -9,6 +9,7 @@ from app.models import Account, User, UserSession
 from app.security.throttle import LoginThrottle
 from app.services.auth import SetupGuard, resolve_session
 from app.services.market_data import MarketDataService
+from app.services.sync import SyncService
 
 DbSession = Annotated[Session, Depends(get_session)]
 SESSION_COOKIE = "jacklyn_session"
@@ -75,6 +76,14 @@ def get_market_service(request: Request) -> MarketDataService:
 
 
 MarketService = Annotated[MarketDataService, Depends(get_market_service)]
+
+
+def get_sync_service(request: Request) -> SyncService:
+    service: SyncService = request.app.state.sync
+    return service
+
+
+SyncSvc = Annotated[SyncService, Depends(get_sync_service)]
 
 
 def get_throttle(request: Request) -> LoginThrottle:

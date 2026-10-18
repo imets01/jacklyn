@@ -6,6 +6,7 @@ import { useAccount, useHoldings } from '../api/hooks'
 import { AccountFormModal } from '../components/accounts/AccountFormModal'
 import { AccountTypeBadge, BrokerAvatar, TbszProgress } from '../components/accounts/AccountRow'
 import { DeleteAccountCard } from '../components/accounts/DeleteAccountCard'
+import { ImportedBanner } from '../components/accounts/ImportedBanner'
 import { AssetIcon } from '../components/assets/AssetIcon'
 import { CashBreakdown } from '../components/dashboard/CashBreakdown'
 import { NetWorthCard } from '../components/dashboard/NetWorthCard'
@@ -139,6 +140,7 @@ export function AccountDetailPage() {
         }
       />
       <AccountFormModal open={editing} onClose={() => setEditing(false)} account={data} />
+      <ImportedBanner />
       <div className="flex flex-col gap-5">
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_280px]">
           <NetWorthCard

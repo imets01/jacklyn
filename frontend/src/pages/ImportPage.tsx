@@ -1,16 +1,18 @@
-import { CircleAlert, CircleCheck } from 'lucide-react'
+import { CircleAlert } from 'lucide-react'
 import { useState } from 'react'
-import { Link } from 'react-router'
+import { useNavigate } from 'react-router'
 
 import { useAccounts, useCommitImport, usePreviewImport, useSaveMapping } from '../api/hooks'
-import type { ColumnMappingConfig, ImportCommitResult, ImportPreview, TablePreview } from '../api/types'
+import type { ColumnMappingConfig, ImportPreview, TablePreview } from '../api/types'
 import { AccountFormModal } from '../components/accounts/AccountFormModal'
 import { ColumnMapperModal, type MapperApply } from '../components/importer/ColumnMapperModal'
 import { DropZone } from '../components/importer/DropZone'
+import { IbkrSyncCard } from '../components/importer/IbkrSyncCard'
 import { ImportHistory, SavedPresets, SupportedFormats } from '../components/importer/ImportSidebar'
 import { PreviewPanel } from '../components/importer/PreviewPanel'
 import { PageHeader } from '../components/layout/PageHeader'
 import { Button, Card, Notice } from '../components/ui/primitives'
+import { importedState } from '../lib/imported'
 import { usePreferences } from '../lib/preferences-context'
 
 function defaultSelection(preview: ImportPreview): Set<number> {
@@ -35,7 +37,7 @@ export function ImportPage() {
   const [mapperSession, setMapperSession] = useState(0)
   const [mapperError, setMapperError] = useState<string | null>(null)
   const [newAccountOpen, setNewAccountOpen] = useState(false)
-  const [committed, setCommitted] = useState<{ result: ImportCommitResult; accountId: number } | null>(null)
+  const navigate = useNavigate()
 
   const runPreview = (
     nextFile: File,
@@ -65,7 +67,6 @@ export function ImportPage() {
     setFile(nextFile)
     setMapping(null)
     setTable(null)
-    setCommitted(null)
     setPreview(null)
     runPreview(nextFile, { accountId, mapping: null })
   }
@@ -117,11 +118,10 @@ export function ImportPage() {
         file_sha256: preview.file_sha256,
       },
       {
-        onSuccess: (result) => {
-          setCommitted({ result, accountId })
-          setPreview(null)
-          setFile(null)
-        },
+        onSuccess: (result) =>
+          navigate(`/accounts/${accountId}`, {
+            state: importedState(preview.filename ?? 'Import', result.imported, result.duplicates),
+          }),
       },
     )
   }
@@ -134,7 +134,6 @@ export function ImportPage() {
   }
 
   const accountList = accounts.data ?? []
-  const committedAccount = committed ? accountList.find((a) => a.id === committed.accountId) : undefined
 
   return (
     <>
@@ -148,30 +147,7 @@ export function ImportPage() {
       <div className="flex flex-col gap-5">
         <div className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
           <div className="flex flex-col gap-4">
-            {committed ? (
-              <Card className="flex flex-wrap items-center gap-4 px-6 py-5">
-                <div className="grid size-10 place-items-center rounded-2xl bg-positive-soft text-positive">
-                  <CircleCheck className="size-5" aria-hidden />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-ink">
-                    Imported {committed.result.imported} transaction{committed.result.imported === 1 ? '' : 's'}
-                    {committedAccount ? ` into ${committedAccount.name}` : ''}
-                  </p>
-                  <p className="text-sm text-ink-3">
-                    {committed.result.duplicates
-                      ? `${committed.result.duplicates} already recorded and skipped.`
-                      : 'No duplicates found.'}
-                  </p>
-                </div>
-                <Link
-                  to={`/accounts/${committed.accountId}`}
-                  className="inline-flex h-10 items-center rounded-full border border-line px-4 text-sm font-medium hover:bg-surface-2"
-                >
-                  View account
-                </Link>
-              </Card>
-            ) : null}
+            <IbkrSyncCard accounts={accountList} />
             <DropZone onFile={onFile} busy={previewMutation.isPending && !mapperOpen} />
             {previewMutation.error && !mapperOpen ? (
               <Notice tone="negative" icon={<CircleAlert className="size-4" />}>

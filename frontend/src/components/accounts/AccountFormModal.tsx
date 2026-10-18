@@ -16,6 +16,7 @@ interface AccountFormProps {
   account?: AccountSummary
   onSaved?: (account: AccountSummary) => void
   defaultBroker?: string | null
+  defaultExternalId?: string | null
 }
 
 /** Create or edit an account. Mounted only while open, so every opening starts from fresh values. */
@@ -23,14 +24,14 @@ export function AccountFormModal({ open, ...props }: AccountFormProps & { open: 
   return open ? <AccountFormDialog {...props} /> : null
 }
 
-function AccountFormDialog({ onClose, account, onSaved, defaultBroker }: AccountFormProps) {
+function AccountFormDialog({ onClose, account, onSaved, defaultBroker, defaultExternalId }: AccountFormProps) {
   const [thisYear] = useState(() => new Date().getFullYear())
   const [name, setName] = useState(account?.name ?? '')
   const [broker, setBroker] = useState(account?.broker ?? defaultBroker ?? '')
   const [accountType, setAccountType] = useState<AccountType>(account?.account_type ?? 'standard')
   const [tbszYear, setTbszYear] = useState(account?.tbsz_year ?? thisYear)
   const [currency, setCurrency] = useState(account?.currency ?? 'CHF')
-  const [externalId, setExternalId] = useState(account?.external_account_id ?? '')
+  const [externalId, setExternalId] = useState(account?.external_account_id ?? defaultExternalId ?? '')
   const [trackCash, setTrackCash] = useState(account?.track_cash ?? true)
   const create = useCreateAccount()
   const update = useUpdateAccount()

@@ -45,9 +45,14 @@ class CustomCSVMapping(Base):
 
 
 class BrokerCredential(Base):
-    """API-sync credentials (e.g. IBKR Flex read-only token + query id). The token is encrypted at rest."""
+    """API-sync credentials (e.g. IBKR Flex read-only token + query id). The token is encrypted at rest.
+
+    One connection per user and provider: a Flex query may cover several IBKR accounts, and each statement
+    is routed to the Jacklyn account whose `external_account_id` matches.
+    """
 
     __tablename__ = "broker_credentials"
+    __table_args__ = (UniqueConstraint("user_id", "provider"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
@@ -55,5 +60,11 @@ class BrokerCredential(Base):
     provider: Mapped[str] = mapped_column(String(32))
     token: Mapped[str] = mapped_column(EncryptedText())
     query_id: Mapped[str | None] = mapped_column(String(64))
-    last_synced_at: Mapped[dt.datetime | None]
+    auto_sync: Mapped[bool] = mapped_column(default=True)
+    last_synced_at: Mapped[dt.datetime | None]  # last run that fetched a statement
+    last_attempt_at: Mapped[dt.datetime | None]
+    last_status: Mapped[str | None] = mapped_column(String(16))  # ok | partial | failed
+    last_message: Mapped[str | None] = mapped_column(Text)
+    # Per IBKR account: {"account": "U123", "account_id": 4 | null, "received": .., "imported": .., ...}
+    last_result: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON)
     created_at: Mapped[dt.datetime] = mapped_column(default=utcnow)

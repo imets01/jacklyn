@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     default_user_name: str = "Jacklyn Owner"
     default_base_currency: str = "CHF"
 
-    # Live market data (yfinance). Disable for offline use or tests.
+    # Live market data (yfinance) and the daily IBKR auto-sync. Disable for offline use or tests.
     live_market_data: bool = True
     market_data_ttl_seconds: int = 900
     # Optional free key from https://eulerpool.com/developers/register: real country mixes and full holdings

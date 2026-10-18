@@ -608,3 +608,36 @@ export interface HealthReport {
   rebalance: RebalancePlan | null
   rules: HealthRule[]
 }
+
+// ---------------------------------------------------------------- IBKR Flex sync
+
+export interface SyncedAccount {
+  /** IBKR account number, e.g. U1234567. */
+  account: string
+  account_id: number | null
+  account_name: string | null
+  received: number
+  imported: number
+  duplicates: number
+  errors: number
+}
+
+export interface IbkrConnection {
+  query_id: string
+  token_hint: string
+  auto_sync: boolean
+  running: boolean
+  last_synced_at: string | null
+  last_attempt_at: string | null
+  next_auto_sync_at: string | null
+  last_status: 'ok' | 'partial' | 'failed' | null
+  last_message: string | null
+  accounts: SyncedAccount[]
+}
+
+export interface IbkrConnectionIn {
+  /** Leave out to keep the stored token. */
+  token?: string
+  query_id: string
+  auto_sync: boolean
+}

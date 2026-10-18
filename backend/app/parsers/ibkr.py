@@ -442,21 +442,35 @@ class IBKRFlexXMLParser(BaseBrokerParser):
             return 0.0
 
     def parse(self, source: SourceFile) -> RawStatement:
+        """Every account in the file as one statement (a manual upload goes into the one account picked)."""
+        merged = RawStatement(records=[], metadata={})
+        for statement in self._statements(source).values():
+            merged.records.extend(statement.records)
+            for key, value in statement.metadata.items():
+                merged.metadata.setdefault(key, value)
+        return merged
+
+    def run_per_account(self, source: SourceFile) -> dict[str, ParseResult]:
+        """One result per IBKR account number, so an API sync can route each to its own Jacklyn account."""
+        return {account: self.normalize(statement) for account, statement in self._statements(source).items()}
+
+    @staticmethod
+    def _statements(source: SourceFile) -> dict[str, RawStatement]:
         root = ElementTree.fromstring(source.text.encode("utf-8"))
-        records: list[RawRecord] = []
-        metadata: dict[str, str] = {}
-        for statement in root.iter("FlexStatement"):
-            metadata.setdefault("accountId", statement.get("accountId", ""))
-            info = statement.find("AccountInformation")
+        statements: dict[str, RawStatement] = {}
+        for node in root.iter("FlexStatement"):
+            account = node.get("accountId", "")
+            statement = statements.setdefault(account, RawStatement(records=[], metadata={"accountId": account}))
+            info = node.find("AccountInformation")
             if info is not None and info.get("currency"):
-                metadata.setdefault("currency", info.get("currency", ""))
-            for trade in statement.iter("Trade"):
+                statement.metadata.setdefault("currency", info.get("currency", ""))
+            for trade in node.iter("Trade"):
                 if trade.get("levelOfDetail", "") in FLEX_TRADE_LEVELS:
-                    records.append(RawRecord(row=None, fields=dict(trade.attrib), section="Trade"))
-            for cash in statement.iter("CashTransaction"):
+                    statement.records.append(RawRecord(row=None, fields=dict(trade.attrib), section="Trade"))
+            for cash in node.iter("CashTransaction"):
                 if cash.get("levelOfDetail", "") in FLEX_CASH_LEVELS:
-                    records.append(RawRecord(row=None, fields=dict(cash.attrib), section="CashTransaction"))
-        return RawStatement(records=records, metadata=metadata)
+                    statement.records.append(RawRecord(row=None, fields=dict(cash.attrib), section="CashTransaction"))
+        return statements
 
     def normalize(self, statement: RawStatement) -> ParseResult:
         result = self._result()

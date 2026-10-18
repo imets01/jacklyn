@@ -16,8 +16,11 @@ from app.security.throttle import LoginThrottle
 from app.seed import seed
 from app.services.auth import SetupGuard, needs_setup, purge_expired_sessions
 from app.services.market_data import MarketDataService
+from app.services.sync import SyncService
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+# httpx logs every request URL at INFO, and IBKR's Flex Web Service takes the token as a query parameter.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 CSRF_HEADER = "x-jacklyn-request"
 CACHEABLE_API = re.compile(r"/api/(assets/\d+/logo|logos/[a-z]+:[A-Z0-9]+)")
@@ -42,7 +45,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             app.state.setup_guard.arm()
     app.state.market = MarketDataService(SessionLocal, settings)
     app.state.market.refresh_in_background()
+    app.state.sync = SyncService(SessionLocal)
+    if settings.live_market_data:  # offline mode (and tests) never reach out to IBKR on their own
+        app.state.sync.start_scheduler()
     yield
+    app.state.sync.stop()
 
 
 def _same_origin(request: Request) -> bool:
