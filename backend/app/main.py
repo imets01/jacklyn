@@ -21,6 +21,9 @@ from app.services.sync import SyncService
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 # httpx logs every request URL at INFO, and IBKR's Flex Web Service takes the token as a query parameter.
 logging.getLogger("httpx").setLevel(logging.WARNING)
+# yfinance logs every probed symbol that does not exist as an ERROR; listing lookups expect misses and the
+# market data service reports real failures itself.
+logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 
 CSRF_HEADER = "x-jacklyn-request"
 CACHEABLE_API = re.compile(r"/api/(assets/\d+/logo|logos/[a-z]+:[A-Z0-9]+)")

@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.config import Settings, get_settings
 from app.enums import PriceSource
 from app.health.composition import composition_logo_keys
-from app.models import Account, Asset, AssetPrice, AssetProfile, FxRate, Transaction, User
+from app.models import Account, Asset, AssetPrice, AssetProfile, AssetSplit, FxRate, Transaction, User
 from app.services.asset_info import (
     logo_candidates,
     profile_is_stale,
@@ -75,31 +75,52 @@ def load_yfinance() -> Any:
     return yf
 
 
-def _download_closes(tickers: list[str], start: dt.date) -> dict[str, dict[dt.date, Any]]:
-    """{ticker: {date: close}} using one batched yfinance request."""
+@dataclass
+class History:
+    closes: dict[dt.date, Any]
+    splits: dict[dt.date, Any] = field(default_factory=dict)  # date -> ratio (10.0 for a 10-for-1 split)
+
+
+def _download_history(tickers: list[str], start: dt.date, *, splits: bool = False) -> dict[str, History]:
+    """{ticker: daily closes (and, with `splits`, stock splits)} using one batched yfinance request.
+
+    Yahoo's Close is split-adjusted, which is why the portfolio engine restates trades from before a split.
+    """
     frame = load_yfinance().download(
         tickers,
         start=start.isoformat(),
         interval="1d",
         auto_adjust=False,
+        actions=splits,
         progress=False,
         group_by="ticker",
         threads=True,
         timeout=20,
         multi_level_index=True,
     )
-    closes: dict[str, dict[dt.date, Any]] = {}
+    histories: dict[str, History] = {}
     if frame is None or frame.empty:
-        return closes
+        return histories
     for ticker in tickers:
         try:
-            column = frame[ticker]["Close"]
+            data = frame[ticker]
+            column = data["Close"]
         except KeyError:
             continue
-        closes[ticker] = {
-            index.date() if hasattr(index, "date") else index: value for index, value in column.dropna().items()
-        }
-    return closes
+        history = History(closes={_day(index): value for index, value in column.dropna().items()})
+        if splits and "Stock Splits" in data:
+            history.splits = {_day(index): value for index, value in data["Stock Splits"].dropna().items() if value}
+        histories[ticker] = history
+    return histories
+
+
+def _day(index: Any) -> dt.date:
+    return index.date() if hasattr(index, "date") else index  # type: ignore[no-any-return]
+
+
+def _download_closes(tickers: list[str], start: dt.date) -> dict[str, dict[dt.date, Any]]:
+    """{ticker: {date: close}} using one batched yfinance request."""
+    return {ticker: history.closes for ticker, history in _download_history(tickers, start).items()}
 
 
 class MarketDataService:
@@ -200,23 +221,32 @@ class MarketDataService:
             query = query.where(Asset.id.in_(only))
         plans: dict[str, tuple[Asset, dt.date]] = {}
         for asset, first_trade in session.execute(query).all():
-            start = self._asset_start(session, asset, first_trade)
+            # Splits must be known from the first trade on: fetch the whole history once per asset.
+            start = (
+                first_trade - dt.timedelta(days=7)
+                if asset.splits_through is None
+                else self._asset_start(session, asset, first_trade)
+            )
             if asset.yf_ticker:
                 plans[asset.yf_ticker] = (asset, start)
         silent: set[int] = set()
         for start, tickers in _group_by_start({t: s for t, (_, s) in plans.items()}).items():
             try:
-                closes = _download_closes(tickers, start)
+                histories = _download_history(tickers, start, splits=True)
             except Exception as exc:  # noqa: BLE001
                 report.errors.append(f"prices: {exc}")
                 continue
             for ticker in tickers:
                 asset = plans[ticker][0]
-                series = closes.get(ticker, {})
-                points = {d: p for d, raw in series.items() if (p := _to_decimal(raw, PRICE_QUANTUM)) is not None}
+                history = histories.get(ticker, History(closes={}))
+                points = {
+                    d: p for d, raw in history.closes.items() if (p := _to_decimal(raw, PRICE_QUANTUM)) is not None
+                }
                 if points:
                     report.rows_written += _upsert_prices(session, asset.id, points)
                     report.assets_updated += 1
+                    _store_splits(session, asset.id, history.splits)
+                    asset.splits_through = max(points)
                 else:
                     silent.add(asset.id)
         if silent:  # a ticker that worked before may just be delisted: keep its history and stop there
@@ -377,6 +407,15 @@ def _group_by_start(starts: dict[str, dt.date]) -> dict[dt.date, list[str]]:
     if backfill:
         groups.setdefault(min(starts[t] for t in backfill), []).extend(backfill)
     return groups
+
+
+def _store_splits(session: Session, asset_id: int, splits: dict[dt.date, Any]) -> None:
+    known = set(session.scalars(select(AssetSplit.split_date).where(AssetSplit.asset_id == asset_id)))
+    for day, raw in splits.items():
+        ratio = _to_decimal(raw, PRICE_QUANTUM)
+        if ratio is not None and ratio > 0 and ratio != 1 and day not in known:
+            session.add(AssetSplit(asset_id=asset_id, split_date=day, ratio=ratio))
+            logger.info("Stock split for asset %s on %s: %s for 1", asset_id, day, ratio)
 
 
 def _upsert_prices(session: Session, asset_id: int, points: dict[dt.date, Decimal]) -> int:

@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import get_settings
 from app.enums import ImportSource, PriceSource, TransactionType
-from app.models import Account, Asset, AssetPrice, User
+from app.models import Account, Asset, AssetPrice, AssetSplit, User
 from app.schemas.standard import StandardTransaction
 from app.services import market_data
 from app.services.ingestion import ingest_transactions
@@ -87,16 +87,28 @@ def _hold(db: Session, user: User, account: Account, symbol: str, ticker: str, p
     return asset
 
 
-def _refresh_assets(db: Session, monkeypatch: pytest.MonkeyPatch, quotes: dict[str, float]) -> None:
-    """Run the price step against a fake Yahoo that only knows `quotes`."""
+def _refresh_assets(
+    db: Session,
+    monkeypatch: pytest.MonkeyPatch,
+    quotes: dict[str, float],
+    splits: dict[str, dict[dt.date, float]] | None = None,
+) -> list[tuple[list[str], dt.date]]:
+    """Run the price step against a fake Yahoo that only knows `quotes` (and `splits`); returns its requests."""
+    requests: list[tuple[list[str], dt.date]] = []
 
-    def download(tickers: list[str], start: dt.date) -> dict[str, dict[dt.date, Any]]:
-        return {t: {dt.date(2025, 3, 4): quotes[t]} for t in tickers if t in quotes}
+    def download(tickers: list[str], start: dt.date, **_: Any) -> dict[str, market_data.History]:
+        requests.append((tickers, start))
+        return {
+            t: market_data.History(closes={dt.date(2025, 3, 4): quotes[t]}, splits=(splits or {}).get(t, {}))
+            for t in tickers
+            if t in quotes
+        }
 
-    monkeypatch.setattr(market_data, "_download_closes", download)
+    monkeypatch.setattr(market_data, "_download_history", download)
     service = market_data.MarketDataService(sessionmaker(), get_settings())
     service._refresh_assets(db, market_data.RefreshReport())
     db.commit()
+    return requests
 
 
 def test_refresh_finds_a_new_listing_for_tickers_that_never_return_quotes(
@@ -173,3 +185,67 @@ def test_holdings_changed_during_a_refresh_runs_one_more(monkeypatch: pytest.Mon
 
     service.refresh()  # the running refresh finishes ...
     assert started == ["refresh"]  # ... and starts another one for the new holdings
+
+
+# ------------------------------------------------------------------------------ stock splits
+
+
+def _trade(day: dt.date, side: TransactionType, quantity: str, price: str) -> StandardTransaction:
+    return StandardTransaction(
+        date=day, type=side, symbol="NVDA", quantity=Decimal(quantity), unit_price=Decimal(price), currency="USD"
+    )
+
+
+def _nvda(db: Session, user: User, account: Account, *trades: StandardTransaction) -> Asset:
+    """NVDA with Yahoo's split-adjusted closes and its 10-for-1 split of 10 June 2024."""
+    ingest_transactions(db, user_id=user.id, account_id=account.id, transactions=list(trades), source=ImportSource.FILE)
+    asset = db.scalars(select(Asset).where(Asset.symbol == "NVDA")).one()
+    for day, close in ((dt.date(2024, 6, 5), "122.44"), (dt.date(2026, 9, 29), "227.10")):
+        db.add(AssetPrice(asset_id=asset.id, price_date=day, close=Decimal(close), source=PriceSource.YFINANCE))
+    db.add(AssetSplit(asset_id=asset.id, split_date=dt.date(2024, 6, 10), ratio=Decimal(10)))
+    db.commit()
+    return asset
+
+
+def test_trades_before_an_unrecorded_split_are_restated(db: Session, user: User, account: Account) -> None:
+    """Lightyear's NVDA history: bought before the split at the old price, sold everything after it."""
+    buy = _trade(dt.date(2024, 6, 5), TransactionType.BUY, "0.706141240", "1183.80")
+    nvda = _nvda(db, user, account, buy)
+    engine = PortfolioEngine(db, user_id=user.id, base_currency="USD", as_of=dt.date(2026, 9, 28))
+    position = engine.replay()[account.id].positions[nvda.id]
+    assert position.quantity == Decimal("7.06141240")  # today's shares; the cost is unchanged
+    cost = Decimal("0.706141240") * Decimal("1183.80")
+    assert position.cost_base == cost
+
+    sell = _trade(dt.date(2026, 9, 29), TransactionType.SELL, "7.061412400", "227.1528")
+    ingest_transactions(db, user_id=user.id, account_id=account.id, transactions=[sell], source=ImportSource.FILE)
+    engine = PortfolioEngine(db, user_id=user.id, base_currency="USD", as_of=dt.date(2026, 10, 1))
+    ledger = engine.replay()[account.id]
+    assert ledger.positions[nvda.id].quantity == 0  # not -6.355271
+    assert ledger.realized == Decimal("7.061412400") * Decimal("227.1528") - cost
+
+
+def test_a_trade_the_broker_already_restated_is_left_alone(db: Session, user: User, account: Account) -> None:
+    buy = _trade(dt.date(2024, 6, 5), TransactionType.BUY, "7.0614124", "118.38")  # split-adjusted already
+    nvda = _nvda(db, user, account, buy)
+    engine = PortfolioEngine(db, user_id=user.id, base_currency="USD", as_of=dt.date(2026, 9, 28))
+    assert engine.replay()[account.id].positions[nvda.id].quantity == Decimal("7.0614124")
+
+
+def test_refresh_stores_splits_and_backfills_them_once(
+    db: Session, user: User, account: Account, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    asset = _hold(db, user, account, "SPLT", "SPLT", "100")
+    db.add(
+        AssetPrice(asset_id=asset.id, price_date=dt.date(2025, 9, 1), close=Decimal(50), source=PriceSource.YFINANCE)
+    )
+    db.commit()
+
+    first = _refresh_assets(db, monkeypatch, {"SPLT": 50.0}, {"SPLT": {dt.date(2025, 6, 2): 2.0}})
+    assert first == [(["SPLT"], dt.date(2025, 2, 24))]  # from the first trade, although prices exist
+    assert [(s.split_date, s.ratio) for s in db.scalars(select(AssetSplit))] == [(dt.date(2025, 6, 2), Decimal(2))]
+    assert asset.splits_through == dt.date(2025, 3, 4)
+
+    again = _refresh_assets(db, monkeypatch, {"SPLT": 50.0}, {"SPLT": {dt.date(2025, 6, 2): 2.0}})
+    assert again[0][1] > dt.date(2025, 2, 24)  # incremental afterwards
+    assert len(db.scalars(select(AssetSplit)).all()) == 1

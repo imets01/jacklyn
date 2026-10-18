@@ -28,7 +28,25 @@ class Asset(Base):
     currency: Mapped[str] = mapped_column(String(3))
     exchange: Mapped[str | None] = mapped_column(String(32))
     yf_ticker: Mapped[str | None] = mapped_column(String(32))
+    # Split history from Yahoo is complete up to this date; None until it was fetched from the first trade on.
+    splits_through: Mapped[dt.date | None] = mapped_column(Date)
     created_at: Mapped[dt.datetime] = mapped_column(default=utcnow)
+
+
+class AssetSplit(Base):
+    """A stock split: on `split_date` every share became `ratio` shares (NVDA, 2024-06-10: 10).
+
+    Brokers' statements rarely record splits, while Yahoo's price history is split-adjusted, so the portfolio
+    engine restates older trades with these (see PortfolioEngine._split_factor).
+    """
+
+    __tablename__ = "asset_splits"
+    __table_args__ = (UniqueConstraint("asset_id", "split_date"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    asset_id: Mapped[int] = mapped_column(ForeignKey("assets.id", ondelete="CASCADE"), index=True)
+    split_date: Mapped[dt.date] = mapped_column(Date)
+    ratio: Mapped[Decimal] = mapped_column(DecimalType(28, 10))
 
 
 class AssetPrice(Base):

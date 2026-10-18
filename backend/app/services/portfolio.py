@@ -15,7 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.enums import AccountType, AssetClass, PriceSource, TransactionType
-from app.models import Account, Asset, AssetLogo, AssetPrice, AssetProfile, Transaction
+from app.models import Account, Asset, AssetLogo, AssetPrice, AssetProfile, AssetSplit, Transaction
 from app.schemas.portfolio import (
     AccountSummary,
     Allocations,
@@ -164,8 +164,44 @@ class PortfolioEngine:
             else 0
         )
         self.fx = FxTable.load(session)
+        self.split_factors = self._split_factors(session)
         self.warnings: set[str] = set()
         self.session = session
+
+    def _split_factors(self, session: Session) -> dict[int, Decimal]:
+        """Transaction id -> share multiplier for trades booked before a stock split.
+
+        Brokers' statements rarely record splits (Lightyear lists NVDA's 2024 buy at 1 183.80 USD and the
+        later sale in post-split shares) while Yahoo's closes are split-adjusted, so older trades are restated
+        in today's shares; cost and proceeds stay the same. A trade whose price already matches the adjusted
+        close was restated by the broker and is left alone.
+        """
+        held = {t.asset_id for t in self.transactions if t.asset_id is not None and t.quantity}
+        if not held:
+            return {}
+        splits: dict[int, list[tuple[dt.date, Decimal]]] = defaultdict(list)
+        for asset_id, day, ratio in session.execute(
+            select(AssetSplit.asset_id, AssetSplit.split_date, AssetSplit.ratio).where(
+                AssetSplit.asset_id.in_(held), AssetSplit.split_date <= self.as_of
+            )
+        ):
+            splits[asset_id].append((day, ratio))
+        factors: dict[int, Decimal] = {}
+        for tx in self.transactions:
+            if tx.asset_id is None or tx.asset_id not in splits or not tx.quantity:
+                continue
+            factor = math.prod((ratio for day, ratio in splits[tx.asset_id] if day > tx.trade_date), start=Decimal(1))
+            if factor != 1 and not self._already_split_adjusted(tx, factor):
+                factors[tx.id] = factor
+        return factors
+
+    def _already_split_adjusted(self, tx: Transaction, factor: Decimal) -> bool:
+        """Is the trade price nearer the split-adjusted close than the unadjusted one (close x factor)?"""
+        point = self.prices.at(tx.asset_id, tx.trade_date) if tx.asset_id is not None else None
+        if not tx.unit_price or point is None or point[1] <= 0:
+            return False
+        distance = math.log(float(tx.unit_price / point[1]))
+        return abs(distance) < abs(distance - math.log(float(factor)))
 
     # ------------------------------------------------------------------ ledger replay
 
@@ -184,7 +220,7 @@ class PortfolioEngine:
     def _apply(self, ledger: Ledger, account: Account, tx: Transaction) -> None:
         on, currency = tx.trade_date, tx.currency
         amount, fee, tax = tx.amount or ZERO, tx.fee, tx.tax
-        quantity = tx.quantity or ZERO
+        quantity = (tx.quantity or ZERO) * self.split_factors.get(tx.id, Decimal(1))  # in today's shares
         ledger.transaction_count += 1
         ledger.last_date = on
         if account.track_cash:
@@ -207,7 +243,7 @@ class PortfolioEngine:
                 if not account.track_cash:
                     ledger.contributions -= proceeds
             case TransactionType.TRANSFER_IN if position is not None:
-                gross = quantity * (tx.unit_price or ZERO)
+                gross = (tx.quantity or ZERO) * (tx.unit_price or ZERO)  # as booked, before any split
                 value = self._to_base(gross, currency, on)
                 position.quantity += quantity
                 position.cost_base += value
