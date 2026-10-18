@@ -2,13 +2,16 @@ import { Info } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 
 import { useCreateAccount, useUpdateAccount } from '../../api/hooks'
-import { ACCOUNT_TYPES, type AccountCreate, type AccountSummary, type AccountType } from '../../api/types'
-import { ACCOUNT_TYPE_LABELS } from '../../lib/format'
+import type { AccountCreate, AccountSummary, AccountType } from '../../api/types'
 import { Modal } from '../ui/Modal'
-import { Button, Field, Input, Notice, Select } from '../ui/primitives'
+import { Button, Field, Input, Notice, SegmentedControl, Select } from '../ui/primitives'
 
 const COMMON_BROKERS = ['Interactive Brokers', 'Lightyear', 'Erste Bank', 'Revolut', 'Degiro', 'Trading 212', 'Swissquote', 'OTP Bank']
 const CURRENCIES = ['CHF', 'EUR', 'USD', 'HUF', 'GBP']
+const ACCOUNT_TYPE_OPTIONS = [
+  { value: 'standard', label: 'Standard' },
+  { value: 'tbsz', label: 'TBSZ' },
+] as const
 
 interface AccountFormProps {
   onClose: () => void
@@ -122,15 +125,21 @@ function AccountFormDialog({ onClose, account, onSaved, defaultBroker, defaultEx
             </Notice>
           </div>
         ) : null}
-        <Field label="Account type">
-          <Select value={accountType} onChange={(e) => setAccountType(e.target.value as AccountType)}>
-            {ACCOUNT_TYPES.map((type) => (
-              <option key={type} value={type}>
-                {ACCOUNT_TYPE_LABELS[type]}
-              </option>
-            ))}
-          </Select>
-        </Field>
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[13px] font-medium text-ink-2">Account type</span>
+          <SegmentedControl<AccountType>
+            label="Account type"
+            options={ACCOUNT_TYPE_OPTIONS}
+            value={accountType}
+            onChange={setAccountType}
+            fill
+          />
+          <span className="text-xs text-ink-3">
+            {accountType === 'tbsz'
+              ? 'Hungarian long-term account: tracks the lock-up and tax-free date of its vintage.'
+              : 'Any regular brokerage or bank account.'}
+          </span>
+        </div>
         {accountType === 'tbsz' ? (
           <Field label="TBSZ vintage year" hint="The collection year deposits are made in.">
             <Input

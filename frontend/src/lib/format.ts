@@ -162,16 +162,6 @@ export const TRANSACTION_TYPE_LABELS: Record<string, string> = {
   transfer_out: 'Transfer out',
 }
 
-export const ACCOUNT_TYPE_LABELS: Record<string, string> = {
-  standard: 'Standard',
-  swiss: 'Swiss',
-  tbsz: 'TBSZ',
-  pension: 'Pension',
-  savings: 'Savings',
-  crypto: 'Crypto',
-  other: 'Other',
-}
-
 export const ASSET_CLASS_LABELS: Record<string, string> = {
   stock: 'Stock',
   etf: 'ETF',

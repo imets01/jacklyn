@@ -2,13 +2,10 @@ from enum import StrEnum
 
 
 class AccountType(StrEnum):
+    """Only types that behave differently: everything else is a standard account, whatever the broker."""
+
     STANDARD = "standard"
-    SWISS = "swiss"
     TBSZ = "tbsz"  # Hungarian long-term investment account, tracked by vintage (collection) year
-    PENSION = "pension"
-    SAVINGS = "savings"
-    CRYPTO = "crypto"
-    OTHER = "other"
 
 
 class TransactionType(StrEnum):

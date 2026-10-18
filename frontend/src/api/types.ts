@@ -9,7 +9,7 @@ export type ISODateTime = string
 export const BASE_CURRENCIES = ['CHF', 'EUR', 'HUF', 'USD'] as const
 export type BaseCurrency = (typeof BASE_CURRENCIES)[number]
 
-export const ACCOUNT_TYPES = ['standard', 'swiss', 'tbsz', 'pension', 'savings', 'crypto', 'other'] as const
+export const ACCOUNT_TYPES = ['standard', 'tbsz'] as const
 export type AccountType = (typeof ACCOUNT_TYPES)[number]
 
 export const TRANSACTION_TYPES = [

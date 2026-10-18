@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Link } from 'react-router'
 
 import type { AccountSummary } from '../../api/types'
-import { ACCOUNT_TYPE_LABELS, formatMoney, formatMonthYear } from '../../lib/format'
+import { formatMoney, formatMonthYear } from '../../lib/format'
 import { Delta } from '../ui/Delta'
 import { Badge } from '../ui/primitives'
 import { Sensitive } from '../ui/Sensitive'
@@ -62,9 +62,7 @@ export function TbszProgress({ account, compact = false }: { account: AccountSum
 }
 
 export function AccountTypeBadge({ account }: { account: AccountSummary }) {
-  if (account.account_type === 'tbsz') return <Badge tone="accent">TBSZ {account.tbsz_year}</Badge>
-  if (account.account_type === 'standard') return null
-  return <Badge>{ACCOUNT_TYPE_LABELS[account.account_type]}</Badge>
+  return account.account_type === 'tbsz' ? <Badge tone="accent">TBSZ {account.tbsz_year}</Badge> : null
 }
 
 export function AccountRow({ account, currency }: { account: AccountSummary; currency: string }) {

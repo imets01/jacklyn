@@ -287,7 +287,7 @@ class DemoPortfolio:
                 self._account(
                     name="IBKR Swiss",
                     broker="Interactive Brokers",
-                    account_type=AccountType.SWISS,
+                    account_type=AccountType.STANDARD,
                     currency="CHF",
                     external_account_id="U0000001",
                 ),
