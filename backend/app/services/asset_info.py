@@ -2,7 +2,7 @@
 
 Logos are downloaded by the server, never by browsers: the strict CSP stays intact, each image is fetched
 once and cached, and nobody's browser tells a third party which securities they hold. Elbstream (by ISIN,
-plus commodity, crypto and currency tiles) is tried first, then Logo.dev / Google by website.
+plus commodity, crypto and currency tiles) is tried first, then Google's favicon service by website.
 """
 
 import datetime as dt
@@ -15,7 +15,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, select
 from sqlalchemy.orm import Session
 
 from app.enums import AssetClass
@@ -507,3 +507,11 @@ def resolve_logos(
                     break
     session.flush()
     return chosen, stored
+
+
+def shared_logo_urls(session: Session, condition: ColumnElement[bool]) -> dict[str, str]:
+    """Cache-busting `/api/logos/{key}` URLs for downloaded flags and currency badges matching `condition`."""
+    rows = session.execute(
+        select(AssetLogo.key, AssetLogo.fetched_at).where(condition, AssetLogo.data.is_not(None))
+    ).all()
+    return {key: f"/api/logos/{key}?v={int(fetched.timestamp())}" for key, fetched in rows}

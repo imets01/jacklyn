@@ -149,14 +149,6 @@ def authenticate(
     return LoginResult(LoginOutcome.OK, user=user)
 
 
-def set_password(db: Session, user: User, new_password: str) -> None:
-    passwords.check_policy(new_password, email=user.email)
-    user.password_hash = passwords.hash_password(new_password)
-    user.failed_logins = 0
-    user.locked_until = None
-    db.commit()
-
-
 # ------------------------------------------------------------------ invite & reset links
 
 

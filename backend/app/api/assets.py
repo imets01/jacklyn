@@ -85,16 +85,9 @@ def shared_logo(
     session: DbSession,
     _user: CurrentUser,
 ) -> Response:
-    """Country flags and currency badges: public reference images, served from the cache only."""
+    """Country flags and currency badges: public reference images any signed-in user may load, from the
+    cache only."""
     return _image(session.get(AssetLogo, key))
-
-
-@router.get("/api/currencies/{code}/logo", responses={200: {"content": {"image/svg+xml": {}}}})
-def currency_logo(
-    code: Annotated[str, Path(pattern=r"^[A-Z]{3}$")], session: DbSession, _user: CurrentUser
-) -> Response:
-    """Currency badges are not sensitive: any signed-in user may load any of them."""
-    return _image(session.get(AssetLogo, f"currency:{code}"))
 
 
 @router.get("/api/assets/{asset_id}/logo", responses={200: {"content": {"image/png": {}}}})

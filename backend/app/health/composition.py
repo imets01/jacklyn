@@ -2,7 +2,6 @@
 
 from decimal import Decimal
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.enums import AssetClass
@@ -10,6 +9,7 @@ from app.health.config import load_benchmark
 from app.health.exposure import UNCLASSIFIED, PositionInput, category_split, position_countries, position_sectors
 from app.models import Asset, AssetLogo, AssetProfile
 from app.schemas.portfolio import FundComposition, TopHolding, WeightRow
+from app.services.asset_info import shared_logo_urls
 from app.services.eulerpool import COUNTRY_CODES, normalize_country
 
 ZERO = Decimal(0)
@@ -31,15 +31,6 @@ def composition_logo_keys(profile: AssetProfile) -> set[str]:
     """Flags for every country a fund holds, fetched in the background."""
     keys = {country_logo_key(normalize_country(name)) for name in (profile.country_weights or {})}
     return {key for key in keys if key}
-
-
-def _logo_urls(session: Session, keys: set[str]) -> dict[str, str]:
-    if not keys:
-        return {}
-    rows = session.execute(
-        select(AssetLogo.key, AssetLogo.fetched_at).where(AssetLogo.key.in_(keys), AssetLogo.data.is_not(None))
-    ).all()
-    return {key: f"/api/logos/{key}?v={int(fetched.timestamp())}" for key, fetched in rows}
 
 
 def _rows(weights: dict[str, Decimal], logos: dict[str, str] | None = None) -> list[WeightRow]:
@@ -104,7 +95,8 @@ def fund_composition(session: Session, asset: Asset) -> FundComposition | None:
     country_weights, known, _ = position_countries(position, benchmark)
     split, _ = category_split(position)
     sectors = position_sectors(position, benchmark) if profile.sector_weights else {}
-    logos = _logo_urls(session, composition_logo_keys(profile))
+    keys = composition_logo_keys(profile)
+    logos = shared_logo_urls(session, AssetLogo.key.in_(keys)) if keys else {}
     holdings, count, holdings_source = _top_holdings(profile)
     return FundComposition(
         countries=_rows(country_weights, logos) if known != "unknown" else [],

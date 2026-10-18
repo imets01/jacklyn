@@ -7,10 +7,9 @@ from sqlalchemy.exc import IntegrityError
 from app.api.deps import BaseCurrency, CurrentUser, DbSession, get_owned_account
 from app.enums import AccountType
 from app.models import Account, BrokerCredential, ImportLog, Transaction
-from app.schemas.api import AccountCreate, AccountUpdate, TransactionPage
+from app.schemas.api import AccountCreate, AccountUpdate
 from app.schemas.portfolio import AccountSummary
 from app.services.portfolio import PortfolioEngine
-from app.services.transactions import TransactionFilter, transaction_page
 
 router = APIRouter(prefix="/api/accounts", tags=["accounts"])
 
@@ -89,15 +88,3 @@ def delete_account(
     session.delete(account)
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.get("/{account_id}/transactions", response_model=TransactionPage)
-def list_transactions(
-    account_id: int,
-    session: DbSession,
-    user: CurrentUser,
-    limit: Annotated[int, Query(ge=1, le=500)] = 100,
-    offset: Annotated[int, Query(ge=0)] = 0,
-) -> TransactionPage:
-    account = get_owned_account(session, user, account_id)
-    return transaction_page(session, user.id, TransactionFilter(account_ids=[account.id]), limit, offset)

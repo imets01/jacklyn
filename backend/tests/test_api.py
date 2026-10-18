@@ -96,7 +96,7 @@ def test_account_edit_relabels_currency_without_touching_amounts(client: TestCli
     # A label fix, not a conversion: the value in the base currency and every stored amount are unchanged.
     assert after["value"] == before["value"]
     assert after["transaction_count"] == before["transaction_count"]
-    stored = client.get(f"/api/accounts/{account['id']}/transactions").json()["items"]
+    stored = client.get("/api/transactions", params={"account_id": account["id"]}).json()["items"]
     assert sorted((tx["currency"], Decimal(tx["amount"])) for tx in stored) == [
         ("CHF", Decimal(200)),
         ("EUR", Decimal(500)),
@@ -209,7 +209,7 @@ def test_delete_account_removes_its_data_only(client: TestClient) -> None:
     assert client.delete(f"/api/accounts/{doomed['id']}", params={"confirm": "Delete me"}).status_code == 204
 
     assert client.get(f"/api/accounts/{doomed['id']}").status_code == 404
-    assert client.get(f"/api/accounts/{doomed['id']}/transactions").status_code == 404
+    assert client.get("/api/transactions", params={"account_id": doomed["id"]}).json()["total"] == 0
     assert all(log["account_id"] != doomed["id"] for log in client.get("/api/import/logs").json())
     assert client.get(f"/api/accounts/{keep['id']}").json()["transaction_count"] == 1
     # The name is free again.

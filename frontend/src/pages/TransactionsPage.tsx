@@ -8,6 +8,7 @@ import type { TransactionType } from '../api/types'
 import { PageHeader } from '../components/layout/PageHeader'
 import { TransactionsTable } from '../components/transactions/TransactionsTable'
 import { Button, Card, EmptyState, Field, Input, Select, Spinner } from '../components/ui/primitives'
+import { useDebounced } from '../lib/debounce'
 import { usePreferences } from '../lib/preferences-context'
 import { QueryError } from './QueryError'
 
@@ -25,15 +26,6 @@ const TYPE_GROUPS: { key: string; label: string; types: TransactionType[] }[] = 
 function numberParam(value: string | null): number | null {
   const number = Number(value)
   return value && Number.isInteger(number) && number > 0 ? number : null
-}
-
-function useDebounced<T>(value: T, delay: number): T {
-  const [debounced, setDebounced] = useState(value)
-  useEffect(() => {
-    const timer = window.setTimeout(() => setDebounced(value), delay)
-    return () => window.clearTimeout(timer)
-  }, [value, delay])
-  return debounced
 }
 
 export function TransactionsPage() {

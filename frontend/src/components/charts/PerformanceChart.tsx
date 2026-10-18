@@ -55,12 +55,10 @@ export function PerformanceChart({
   points,
   currency,
   range,
-  height = 280,
 }: {
   points: HistoryPoint[]
   currency: string
   range: HistoryRange
-  height?: number
 }) {
   const gradientId = useId()
   const { hideAmounts } = usePreferences()
@@ -78,7 +76,7 @@ export function PerformanceChart({
   const longRange = range === '1Y' || range === 'ALL'
 
   return (
-    <div style={{ height }} className="w-full">
+    <div className="h-[280px] w-full">
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={data} margin={{ top: 8, right: 4, bottom: 0, left: 0 }}>
           <defs>

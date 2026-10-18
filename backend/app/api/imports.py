@@ -11,7 +11,6 @@ from app.config import get_settings
 from app.enums import ImportSource
 from app.models import Account, CustomCSVMapping, ImportLog, User
 from app.parsers import (
-    PRESET_PARSERS,
     BaseBrokerParser,
     ColumnMappingConfig,
     GenericCSVParser,
@@ -30,7 +29,6 @@ from app.schemas.api import (
     ImportLogOut,
     ImportPreview,
     MappingRef,
-    ParserInfo,
     PreviewSummary,
     PreviewTransaction,
 )
@@ -92,11 +90,6 @@ def _resolve_config(
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Mapping preset not found")
         return ColumnMappingConfig.model_validate(saved.config), MappingRef(id=saved.id, name=saved.name)
     return None
-
-
-@router.get("/parsers", response_model=list[ParserInfo])
-def list_parsers() -> list[ParserInfo]:
-    return [ParserInfo(key=p.key, label=p.label, broker=p.broker) for p in PRESET_PARSERS]
 
 
 @router.post("/preview", response_model=ImportPreview)

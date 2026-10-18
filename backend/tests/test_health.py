@@ -393,8 +393,9 @@ def test_profile_and_report_api(client: TestClient, make_user: Callable[..., Tes
     assert Decimal(custom["rebalance"]["amount"]) >= 2500
 
     friend = make_user()
-    assert friend.get("/api/health/profile").json() is None  # profiles are per user
-    assert friend.get("/api/health/report").json()["has_holdings"] is False
+    friend_report = friend.get("/api/health/report").json()
+    assert friend_report["profile"] is None  # profiles are per user
+    assert friend_report["has_holdings"] is False
 
 
 def test_report_is_the_same_in_every_viewing_currency(client: TestClient) -> None:

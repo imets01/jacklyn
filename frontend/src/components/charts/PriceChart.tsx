@@ -83,14 +83,12 @@ export function PriceChart({
   range,
   intraday,
   trades,
-  height = 280,
 }: {
   points: ChartPoint[]
   currency: string
   range: ChartRange
   intraday: boolean
   trades: HoldingActivity[]
-  height?: number
 }) {
   const gradientId = useId()
   const data = useMemo<Datum[]>(() => {
@@ -118,7 +116,7 @@ export function PriceChart({
   const color = rising ? 'var(--positive)' : 'var(--negative)'
 
   return (
-    <div style={{ height }} className="w-full">
+    <div className="h-[280px] w-full">
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data} margin={{ top: 10, right: 4, bottom: 0, left: 0 }}>
           <defs>

@@ -9,14 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from app.enums import AccountType, ImportSource, ImportStatus, TransactionType
 from app.parsers.base import AccountHint, RowError
 from app.parsers.generic import ColumnMappingConfig, TablePreview
-from app.schemas.standard import CURRENCY_RE, StandardTransaction
-
-
-def _currency(value: str) -> str:
-    code = value.strip().upper()
-    if not CURRENCY_RE.match(code):
-        raise ValueError(f"'{value}' is not an ISO 4217 currency code")
-    return code
+from app.schemas.standard import StandardTransaction, currency_code
 
 
 class UserOut(BaseModel):
@@ -35,7 +28,7 @@ class UserUpdate(BaseModel):
     @field_validator("base_currency")
     @classmethod
     def _base(cls, value: str | None) -> str | None:
-        return _currency(value) if value else None
+        return currency_code(value) if value else None
 
 
 class AccountCreate(BaseModel):
@@ -51,7 +44,7 @@ class AccountCreate(BaseModel):
     @field_validator("currency")
     @classmethod
     def _currency_code(cls, value: str) -> str:
-        return _currency(value)
+        return currency_code(value)
 
     @model_validator(mode="after")
     def _tbsz(self) -> Self:
@@ -76,7 +69,7 @@ class AccountUpdate(BaseModel):
     @field_validator("currency")
     @classmethod
     def _currency_code(cls, value: str | None) -> str | None:
-        return None if value is None else _currency(value)
+        return None if value is None else currency_code(value)
 
     @model_validator(mode="after")
     def _required_stay_set(self) -> Self:
@@ -188,12 +181,6 @@ class ImportLogOut(BaseModel):
     rows_duplicate: int
     message: str | None
     created_at: dt.datetime
-
-
-class ParserInfo(BaseModel):
-    key: str
-    label: str
-    broker: str | None
 
 
 class MappingIn(BaseModel):

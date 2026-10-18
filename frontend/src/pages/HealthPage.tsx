@@ -1,5 +1,5 @@
 import { ChevronDown, HeartPulse, Pencil, ShieldCheck } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router'
 
 import { useHealthReport } from '../api/hooks'
@@ -12,19 +12,11 @@ import { RebalanceCard } from '../components/health/RebalanceCard'
 import { PageHeader } from '../components/layout/PageHeader'
 import { Button, Card, CardHeader, EmptyState, Notice, Spinner } from '../components/ui/primitives'
 import { formatMoney, formatPercent, toNumber } from '../lib/format'
+import { useDebounced } from '../lib/debounce'
 import { CATEGORY_LABELS, RISK_LABELS } from '../lib/health'
 import { usePreferences } from '../lib/preferences-context'
 import { QueryError } from './QueryError'
 import { Sensitive } from '../components/ui/Sensitive'
-
-function useDebounced<T>(value: T, delay: number): T {
-  const [debounced, setDebounced] = useState(value)
-  useEffect(() => {
-    const timer = window.setTimeout(() => setDebounced(value), delay)
-    return () => window.clearTimeout(timer)
-  }, [value, delay])
-  return debounced
-}
 
 function targetText(targets: HealthReport['targets']): string {
   if (!targets) return '—'

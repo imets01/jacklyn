@@ -13,6 +13,15 @@ ZERO = Decimal(0)
 CURRENCY_RE = re.compile(r"^[A-Z]{3}$")
 ISIN_RE = re.compile(r"^[A-Z]{2}[A-Z0-9]{9}[0-9]$")
 
+
+def currency_code(value: str) -> str:
+    """Normalized ISO 4217 code ("chf " -> "CHF"); raises ValueError for anything else."""
+    code = value.strip().upper()
+    if not CURRENCY_RE.match(code):
+        raise ValueError(f"'{value}' is not an ISO 4217 currency code")
+    return code
+
+
 # Income legs can legitimately be negative (dividend reversal, charged interest);
 # FX legs carry their direction in the sign. Everything else is a magnitude.
 SIGNED_AMOUNT_TYPES = frozenset({TransactionType.FX_CONVERSION, TransactionType.DIVIDEND, TransactionType.INTEREST})
@@ -50,10 +59,7 @@ class StandardTransaction(BaseModel):
     @field_validator("currency")
     @classmethod
     def _currency(cls, value: str) -> str:
-        code = value.strip().upper()
-        if not CURRENCY_RE.match(code):
-            raise ValueError(f"'{value}' is not an ISO 4217 currency code")
-        return code
+        return currency_code(value)
 
     @field_validator("symbol", "exchange")
     @classmethod

@@ -82,15 +82,15 @@ Jacklyn is built to be shared with a few trusted people without exposing your se
   producer — the seeder, file imports and the IBKR Flex client (`services/sync/ibkr_flex.py`) all use it.
 - **Money is never a float**: `Decimal` everywhere in Python; `NUMERIC(28,10)` on PostgreSQL and exact
   text storage on SQLite (whose NUMERIC silently degrades to REAL). Floats are rejected at the column level.
-- **Multi-tenancy ready**: every user-owned table has `user_id`; every API query is scoped to the current
-  user, which in Phase 1 is the seeded default user (`app/api/deps.py`) — adding auth means replacing one
-  dependency. Assets, prices and FX rates are shared reference data.
+- **Multi-user**: every user-owned table has `user_id`, and every API query is scoped to the signed-in user
+  (`app/api/deps.py`). Assets, prices and FX rates are shared reference data.
 - **Valuation**: average-cost basis converted to the base currency at each transaction's own date, so P&L
   includes currency effects. Live quotes and FX come from yfinance in a background thread (15 min TTL) and
   are cached in `asset_prices` / `fx_rates`; the app keeps working offline from the cache.
 - **Asset profiles & logos**: the same refresh fills `asset_profiles` (fund issuer, TER, sector, description)
   and downloads one logo per company or fund issuer into `asset_logos`. Browsers only ever load logos from
-  `/api/assets/{id}/logo`, so the CSP stays `img-src 'self'` and no third party learns what anyone holds.
+  `/api/assets/{id}/logo` and `/api/logos/{key}` (flags, currency badges), so the CSP stays `img-src 'self'`
+  and no third party learns what anyone holds.
   Sources, best first: [Elbstream](https://elbstream.com) by ISIN (plus its commodity, crypto and currency
   tiles; credited in the UI), then the company or fund issuer's website icon via Google. SVGs are stored only if they are plain drawings (no script,
   event handlers or external references). Without any image the UI draws flags, a metal bar or initials.
@@ -111,17 +111,16 @@ Jacklyn is built to be shared with a few trusted people without exposing your se
 | GET | `/api/portfolio/history?range=1Y&base=CHF[&account_id=]` | Value vs. net invested series |
 | GET | `/api/portfolio/holdings?base=CHF[&account_id=]` | Positions and cash balances |
 | GET | `/api/portfolio/holdings/{asset_id}?base=CHF` | One asset across accounts: position, fund/company info, activity |
-| GET | `/api/assets/{asset_id}/chart?range=1D…MAX` · `/api/assets/{asset_id}/logo` | Price chart (Yahoo, cached in memory) and cached logo |
+| GET | `/api/assets/{asset_id}/chart?range=1D…MAX` · `/api/assets/{asset_id}/logo` · `/api/logos/{key}` | Price chart (Yahoo, cached in memory), cached asset logo, country flag or currency badge |
 | GET/POST | `/api/accounts` · GET/PATCH/DELETE `/api/accounts/{id}` | Accounts with valuation; TBSZ rules enforced |
-| GET | `/api/accounts/{id}/transactions` | Paginated ledger |
 | GET | `/api/transactions?account_id=&type=&asset_id=&q=&date_from=&date_to=` | Ledger across accounts with filters (search matches symbol, name, ISIN, note) |
-| GET/PUT | `/api/health/profile` · GET `/api/health/report?base=&amount=&include_cash=` | Investor profile; Portfolio Health report (breakdowns, rule findings with citations, score, rebalancing plan) |
+| PUT/GET | `/api/health/profile` · `/api/health/report?base=&amount=&include_cash=` | Investor profile; Portfolio Health report (breakdowns, rule findings with citations, score, rebalancing plan) |
 | POST | `/api/import/preview` (multipart) | Detect → parse → normalized rows with duplicate flags, or a table preview for the column mapper |
 | POST | `/api/import/commit` | Idempotently store selected `StandardTransaction`s |
-| GET | `/api/import/logs` · `/api/import/parsers` | Import history, available presets |
+| GET | `/api/import/logs` | Import history |
 | GET/POST/DELETE | `/api/mappings` | Saved column-mapper presets (auto-applied by header signature) |
-| POST | `/api/market/refresh` · GET `/api/market/status` | Force a quote/FX refresh |
-| GET/PATCH | `/api/me` | Default user & base currency |
+| POST | `/api/market/refresh` | Force a quote/FX refresh |
+| GET/PATCH | `/api/me` | Signed-in user & base currency |
 
 ## Repository layout
 

@@ -409,11 +409,13 @@ def test_logo_endpoint_is_cached_and_scoped(client: TestClient, make_user: Calla
         session.commit()
     cash = client.get("/api/portfolio/holdings").json()["cash"]
     chf = next(c for c in cash if c["currency"] == "CHF")
+    assert chf["logo_url"].startswith("/api/logos/currency:CHF?v=")
     badge = client.get(chf["logo_url"])
     assert (badge.status_code, badge.headers["content-type"]) == (200, "image/svg+xml")
     assert "sandbox" in badge.headers["content-security-policy"]
-    assert client.get("/api/currencies/chf/logo").status_code == 422
-    assert client.get("/api/currencies/XYZ/logo").status_code == 404
+    assert "immutable" in badge.headers["cache-control"]
+    assert client.get("/api/logos/currency:chf").status_code == 422
+    assert client.get("/api/logos/currency:XYZ").status_code == 404
 
     friend = make_user()
     assert friend.get(f"/api/assets/{asset_id}/logo").status_code == 404

@@ -199,7 +199,7 @@ def test_users_cannot_see_or_touch_each_others_data(client: TestClient, make_use
 
     friend = make_user()
     assert friend.get(f"/api/accounts/{target}").status_code == 404
-    assert friend.get(f"/api/accounts/{target}/transactions").status_code == 404
+    assert friend.get("/api/transactions", params={"account_id": target}).json()["items"] == []
     assert friend.patch(f"/api/accounts/{target}", json={"name": "Mine now"}).status_code == 404
     assert friend.get("/api/portfolio/holdings", params={"account_id": target}).json()["holdings"] == []
     assert friend.get("/api/portfolio/history", params={"account_id": target}).json()["points"] == []

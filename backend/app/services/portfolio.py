@@ -35,6 +35,7 @@ from app.schemas.portfolio import (
     PortfolioSummary,
 )
 from app.schemas.standard import cash_flow
+from app.services.asset_info import shared_logo_urls
 from app.services.market_data import LiveStatus
 from app.services.market_tables import FxTable, PriceTable
 from app.services.tbsz import reduced_rate_from, tax_free_from
@@ -421,17 +422,8 @@ class PortfolioEngine:
         return {asset_id: f"/api/assets/{asset_id}/logo?v={int(fetched.timestamp())}" for asset_id, fetched in rows}
 
     def currency_logo_urls(self) -> dict[str, str]:
-        rows = self.session.execute(
-            select(AssetLogo.key, AssetLogo.fetched_at).where(
-                AssetLogo.key.like("currency:%"), AssetLogo.data.is_not(None)
-            )
-        ).all()
-        return {
-            key.removeprefix(
-                "currency:"
-            ): f"/api/currencies/{key.removeprefix('currency:')}/logo?v={int(fetched.timestamp())}"
-            for key, fetched in rows
-        }
+        urls = shared_logo_urls(self.session, AssetLogo.key.like("currency:%"))
+        return {key.removeprefix("currency:"): url for key, url in urls.items()}
 
     def holdings(self) -> HoldingsResponse:
         ledgers = self.replay()

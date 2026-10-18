@@ -60,10 +60,6 @@ class Settings(BaseSettings):
     def _upper(cls, value: str) -> str:
         return value.upper()
 
-    @property
-    def is_sqlite(self) -> bool:
-        return self.database_url.startswith("sqlite")
-
 
 @lru_cache
 def get_settings() -> Settings:

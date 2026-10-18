@@ -11,11 +11,6 @@ from app.schemas.health import HealthReport, InvestorProfileIn, InvestorProfileO
 router = APIRouter(prefix="/api/health", tags=["health"])
 
 
-@router.get("/profile", response_model=InvestorProfileOut | None)
-def read_profile(session: DbSession, user: CurrentUser) -> InvestorProfile | None:
-    return session.get(InvestorProfile, user.id)
-
-
 @router.put("/profile", response_model=InvestorProfileOut)
 def save_profile(payload: InvestorProfileIn, session: DbSession, user: CurrentUser) -> InvestorProfile:
     profile = session.get(InvestorProfile, user.id) or InvestorProfile(user_id=user.id)
