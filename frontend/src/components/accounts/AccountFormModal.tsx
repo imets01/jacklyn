@@ -18,23 +18,27 @@ interface AccountFormProps {
   /** Edit this account; omit to create a new one. */
   account?: AccountSummary
   onSaved?: (account: AccountSummary) => void
-  defaultBroker?: string | null
-  defaultExternalId?: string | null
+  /** Prefilled values for a new account, e.g. from what a statement says about it. */
+  defaults?: AccountDefaults
 }
+
+export type AccountDefaults = Partial<
+  Pick<AccountCreate, 'name' | 'broker' | 'account_type' | 'tbsz_year' | 'currency' | 'external_account_id'>
+>
 
 /** Create or edit an account. Mounted only while open, so every opening starts from fresh values. */
 export function AccountFormModal({ open, ...props }: AccountFormProps & { open: boolean }) {
   return open ? <AccountFormDialog {...props} /> : null
 }
 
-function AccountFormDialog({ onClose, account, onSaved, defaultBroker, defaultExternalId }: AccountFormProps) {
+function AccountFormDialog({ onClose, account, onSaved, defaults }: AccountFormProps) {
   const [thisYear] = useState(() => new Date().getFullYear())
-  const [name, setName] = useState(account?.name ?? '')
-  const [broker, setBroker] = useState(account?.broker ?? defaultBroker ?? '')
-  const [accountType, setAccountType] = useState<AccountType>(account?.account_type ?? 'standard')
-  const [tbszYear, setTbszYear] = useState(account?.tbsz_year ?? thisYear)
-  const [currency, setCurrency] = useState(account?.currency ?? 'CHF')
-  const [externalId, setExternalId] = useState(account?.external_account_id ?? defaultExternalId ?? '')
+  const [name, setName] = useState(account?.name ?? defaults?.name ?? '')
+  const [broker, setBroker] = useState(account?.broker ?? defaults?.broker ?? '')
+  const [accountType, setAccountType] = useState<AccountType>(account?.account_type ?? defaults?.account_type ?? 'standard')
+  const [tbszYear, setTbszYear] = useState(account?.tbsz_year ?? defaults?.tbsz_year ?? thisYear)
+  const [currency, setCurrency] = useState(account?.currency ?? defaults?.currency ?? 'CHF')
+  const [externalId, setExternalId] = useState(account?.external_account_id ?? defaults?.external_account_id ?? '')
   const [trackCash, setTrackCash] = useState(account?.track_cash ?? true)
   const create = useCreateAccount()
   const update = useUpdateAccount()

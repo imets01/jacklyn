@@ -180,19 +180,23 @@ export function useDeleteAccount() {
 }
 
 export interface PreviewRequest {
-  file: File
+  /** One statement, or many at once (e.g. a folder of daily reports). */
+  files: File[]
   accountId?: number | null
   parserKey?: string | null
   mapping?: ColumnMappingConfig | null
   mappingId?: number | null
+  /** Account chosen per preview group (null leaves the group out). */
+  groupAccounts?: Record<string, number | null>
 }
 
 export function usePreviewImport() {
   return useMutation({
-    mutationFn: ({ file, accountId, parserKey, mapping, mappingId }: PreviewRequest) => {
+    mutationFn: ({ files, accountId, parserKey, mapping, mappingId, groupAccounts }: PreviewRequest) => {
       const form = new FormData()
-      form.append('file', file)
+      for (const file of files) form.append('files', file)
       if (accountId != null) form.append('account_id', String(accountId))
+      if (groupAccounts && Object.keys(groupAccounts).length) form.append('group_accounts', JSON.stringify(groupAccounts))
       if (parserKey) form.append('parser_key', parserKey)
       if (mapping) form.append('mapping', JSON.stringify(mapping))
       if (mappingId != null) form.append('mapping_id', String(mappingId))

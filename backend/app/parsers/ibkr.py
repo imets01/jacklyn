@@ -454,6 +454,20 @@ class IBKRFlexXMLParser(BaseBrokerParser):
         """One result per IBKR account number, so an API sync can route each to its own Jacklyn account."""
         return {account: self.normalize(statement) for account, statement in self._statements(source).items()}
 
+    def run(self, source: SourceFile) -> ParseResult:
+        """A multi-account Flex query tags each row with its account number, so the importer can route it."""
+        per_account = self.run_per_account(source)
+        if len(per_account) <= 1:
+            return next(iter(per_account.values()), None) or super().run(source)
+        result = self._result()
+        for number, part in per_account.items():
+            result.rows += [row.model_copy(update={"account": number}) for row in part.rows]
+            result.errors += part.errors
+            result.warnings += part.warnings
+            if part.account_hint is not None:
+                result.accounts[number] = part.account_hint
+        return result
+
     @staticmethod
     def _statements(source: SourceFile) -> dict[str, RawStatement]:
         root = ElementTree.fromstring(source.text.encode("utf-8"))

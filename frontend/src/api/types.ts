@@ -380,6 +380,34 @@ export interface PreviewTransaction {
   row: number | null
   duplicate: boolean
   transaction: StandardTransaction
+  /** Key into ImportPreview.groups when the import spans several accounts. */
+  group: string | null
+}
+
+/** What a statement says about the account it belongs to. */
+export interface AccountHint {
+  broker: string | null
+  external_account_id: string | null
+  currency: string | null
+  /** How the statement names the account, e.g. "TBSZ 2024". */
+  name: string | null
+  tbsz_year: number | null
+}
+
+/** Rows bound for one account: a sub-account of a statement (Erste TBSZ 2024) or one file format. */
+export interface PreviewGroup {
+  key: string
+  label: string
+  parser_key: string
+  account_hint: AccountHint | null
+  /** The account these rows go into; null = not imported unless one is chosen. */
+  suggested_account_id: number | null
+  summary: { total: number; new: number; duplicates: number; errors: number }
+}
+
+export interface SkippedFile {
+  filename: string
+  reason: string
 }
 
 export interface RowError {
@@ -401,8 +429,12 @@ export interface ImportPreview {
   errors: RowError[]
   warnings: string[]
   summary: { total: number; new: number; duplicates: number; errors: number }
-  account_hint: { broker: string | null; external_account_id: string | null; currency: string | null } | null
+  account_hint: AccountHint | null
   suggested_account_id: number | null
+  file_count: number
+  /** Set when rows go to several accounts (several files, or one statement covering sub-accounts). */
+  groups: PreviewGroup[]
+  skipped_files: SkippedFile[]
 }
 
 export interface ImportCommitRequest {

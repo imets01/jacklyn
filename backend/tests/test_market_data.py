@@ -1,4 +1,5 @@
 import datetime as dt
+import threading
 from decimal import Decimal
 from typing import Any, ClassVar
 
@@ -13,6 +14,7 @@ from app.models import Account, Asset, AssetPrice, User
 from app.schemas.standard import StandardTransaction
 from app.services import market_data
 from app.services.ingestion import ingest_transactions
+from app.services.portfolio import PortfolioEngine
 
 
 class FakeTicker:
@@ -123,3 +125,51 @@ def test_refresh_keeps_tickers_when_yahoo_answers_for_nobody(
     brk = _hold(db, user, account, "BRK.B", "BRK.B", "481.67")
     _refresh_assets(db, monkeypatch, {})
     assert brk.yf_ticker == "BRK.B"
+
+
+def test_trade_priced_assets_have_no_day_move(db: Session, user: User, account: Account) -> None:
+    """Without market data an asset is valued at its trades; two trades months apart are not a daily change."""
+    buys = [
+        StandardTransaction(
+            date=day,
+            type=TransactionType.BUY,
+            isin="AT0000A09GU1",
+            quantity=Decimal(1),
+            unit_price=price,
+            currency="EUR",
+        )
+        for day, price in ((dt.date(2024, 4, 2), Decimal(38)), (dt.date(2026, 9, 30), Decimal("100.86")))
+    ]
+    ingest_transactions(db, user_id=user.id, account_id=account.id, transactions=buys, source=ImportSource.FILE)
+    engine = PortfolioEngine(db, user_id=user.id, base_currency="EUR")
+    asset_id = db.scalars(select(Asset.id).where(Asset.isin == "AT0000A09GU1")).one()
+    detail = engine.holding_detail(asset_id)
+    assert detail is not None
+    assert detail.price == Decimal("100.86")
+    assert (detail.previous_close, detail.price_change_pct, detail.day_change) == (None, None, Decimal(0))
+    assert engine.summary().day_change == Decimal(0)
+
+
+def test_holdings_changed_during_a_refresh_runs_one_more(monkeypatch: pytest.MonkeyPatch) -> None:
+    settings = get_settings().model_copy(update={"live_market_data": True})
+    service = market_data.MarketDataService(sessionmaker(), settings)
+    started: list[str] = []
+
+    class FakeThread:
+        def __init__(self, target: Any, **_: Any) -> None:
+            self.target = target
+
+        def start(self) -> None:
+            started.append("refresh")
+
+    monkeypatch.setattr(threading, "Thread", FakeThread)
+    for step in ("_refresh_assets", "_refresh_fx", "_refresh_profiles"):
+        monkeypatch.setattr(service, step, lambda *_args, **_kwargs: None)
+
+    service._lock.acquire()  # a refresh is running
+    service.holdings_changed()  # an import lands meanwhile
+    assert started == []
+    service._lock.release()
+
+    service.refresh()  # the running refresh finishes ...
+    assert started == ["refresh"]  # ... and starts another one for the new holdings

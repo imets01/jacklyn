@@ -8,7 +8,7 @@ from tests.conftest import fixture_bytes
 
 
 def _upload(client: TestClient, name: str, content: bytes | None = None, **form: str) -> dict:  # type: ignore[type-arg]
-    response = client.post("/api/import/preview", files={"file": (name, content or fixture_bytes(name))}, data=form)
+    response = client.post("/api/import/preview", files={"files": (name, content or fixture_bytes(name))}, data=form)
     assert response.status_code == 200, response.text
     return response.json()  # type: ignore[no-any-return]
 
@@ -184,7 +184,7 @@ def test_unknown_csv_goes_through_column_mapper_and_saved_preset(client: TestCli
 
 def test_unsupported_and_invalid_uploads(client: TestClient) -> None:
     assert _upload(client, "statement.pdf", b"%PDF-1.7 ...")["status"] == "unsupported"
-    empty = client.post("/api/import/preview", files={"file": ("empty.csv", b"")})
+    empty = client.post("/api/import/preview", files={"files": ("empty.csv", b"")})
     assert empty.status_code == 400
     bad_commit = client.post("/api/import/commit", json={"account_id": 1, "transactions": [{"date": "2025-01-01"}]})
     assert bad_commit.status_code == 422

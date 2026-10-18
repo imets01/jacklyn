@@ -72,6 +72,11 @@ Jacklyn is built to be shared with a few trusted people without exposing your se
   `GenericCSVParser` takes a JSON `ColumnMappingConfig` (columns, date format, decimal separator,
   type-value map, defaults), so any tabular statement imports without new code. The Lightyear and Erste
   presets are themselves alias-based mapping configs on top of it.
+- **Many files, many accounts**: the importer takes a whole folder at once. Erste NetBroker only exports one
+  report per day (`parsers/erste_reports.py`); every row is tagged with its sub-account (TBSZ 2024, TBSZ 2025,
+  Normál), and the preview routes each group to the matching account (TBSZ vintage + broker, or account ID for
+  multi-account IBKR Flex files). Assets known only by ISIN get a Yahoo listing whose close matched the price
+  paid on the trade date.
 - **File handling**: encoding detection (UTF-8/16, cp1250 with a Hungarian ő/ű fix), delimiter sniffing,
   `1,234.56` vs `1.234,56` vs `1'234.50` detection, title/preamble rows skipped, `.xlsx`, `.xls`, and the
   HTML tables some banks ship as `.xls`.
@@ -119,7 +124,7 @@ Jacklyn is built to be shared with a few trusted people without exposing your se
 | GET/POST | `/api/accounts` · GET/PATCH/DELETE `/api/accounts/{id}` | Accounts with valuation; TBSZ rules enforced |
 | GET | `/api/transactions?account_id=&type=&asset_id=&q=&date_from=&date_to=` | Ledger across accounts with filters (search matches symbol, name, ISIN, note) |
 | PUT/GET | `/api/health/profile` · `/api/health/report?base=&amount=&include_cash=` | Investor profile; Portfolio Health report (breakdowns, rule findings with citations, score, rebalancing plan) |
-| POST | `/api/import/preview` (multipart) | Detect → parse → normalized rows with duplicate flags, or a table preview for the column mapper |
+| POST | `/api/import/preview` (multipart `files`, one or many) | Detect → parse → normalized rows with duplicate flags, grouped per account when needed, or a table preview for the column mapper |
 | POST | `/api/import/commit` | Idempotently store selected `StandardTransaction`s |
 | GET | `/api/import/logs` | Import history |
 | GET/POST/DELETE | `/api/mappings` | Saved column-mapper presets (auto-applied by header signature) |

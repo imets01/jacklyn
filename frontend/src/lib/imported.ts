@@ -5,11 +5,21 @@ export interface ImportedState {
 
 const plural = (count: number, noun: string) => `${count} ${noun}${count === 1 ? '' : 's'}`
 
-export function importedState(source: string, imported: number, duplicates: number): ImportedState {
+/** `elsewhere`: what the same import put into other accounts, mentioned on the account page it lands on. */
+export function importedState(
+  source: string,
+  imported: number,
+  duplicates: number,
+  elsewhere: { name: string; imported: number }[] = [],
+): ImportedState {
+  const also = elsewhere.length
+    ? `Also ${elsewhere.map((part) => `${plural(part.imported, 'transaction')} into ${part.name}`).join(', ')}.`
+    : ''
+  const skipped = duplicates ? `${plural(duplicates, 'transaction')} already recorded and skipped.` : 'No duplicates found.'
   return {
     imported: {
       title: imported ? `${source}: ${plural(imported, 'new transaction')}` : `${source}: nothing new`,
-      detail: duplicates ? `${plural(duplicates, 'transaction')} already recorded and skipped.` : 'No duplicates found.',
+      detail: [also, skipped].filter(Boolean).join(' '),
     },
   }
 }

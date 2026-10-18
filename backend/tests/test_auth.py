@@ -209,7 +209,7 @@ def test_users_cannot_see_or_touch_each_others_data(client: TestClient, make_use
     assert friend.get("/api/import/logs").json() == []
     preview = friend.post(
         "/api/import/preview",
-        files={"file": ("s.csv", fixture_bytes("ibkr_activity.csv"))},
+        files={"files": ("s.csv", fixture_bytes("ibkr_activity.csv"))},
         data={"account_id": str(target)},
     )
     assert preview.status_code == 404

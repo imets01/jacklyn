@@ -188,7 +188,8 @@ export function HoldingDetailPage() {
   }
   const detail = holding.data
   const { asset } = detail
-  const subtitle = [asset.symbol, asset.isin, ASSET_CLASS_LABELS[asset.asset_class], asset.exchange]
+  // Assets known only by ISIN (Erste reports) use it as their symbol too: show it once.
+  const subtitle = [asset.symbol, asset.isin !== asset.symbol ? asset.isin : null, ASSET_CLASS_LABELS[asset.asset_class], asset.exchange]
     .filter(Boolean)
     .join(' · ')
 

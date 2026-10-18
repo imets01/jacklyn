@@ -37,8 +37,11 @@ def _failed(credential: BrokerCredential, message: str) -> None:
     credential.last_message = message[:2000]
 
 
-def run_sync(session: Session, credential: BrokerCredential, *, http: httpx.Client | None = None) -> None:
-    """One sync run. Never raises for IBKR or network problems; they end up in `last_status`/`last_message`."""
+def run_sync(session: Session, credential: BrokerCredential, *, http: httpx.Client | None = None) -> int:
+    """One sync run; returns how many transactions it imported.
+
+    Never raises for IBKR or network problems; they end up in `last_status`/`last_message`.
+    """
     credential.last_attempt_at = utcnow()
     try:
         content = IBKRFlexClient(credential.token, credential.query_id or "").fetch_statement(http)
@@ -46,15 +49,15 @@ def run_sync(session: Session, credential: BrokerCredential, *, http: httpx.Clie
     except FlexError as exc:
         _failed(credential, str(exc))
         session.commit()
-        return
+        return 0
     except httpx.HTTPError as exc:
         _failed(credential, f"Couldn't reach IBKR ({type(exc).__name__}). Try again later.")
         session.commit()
-        return
+        return 0
     except ElementTree.ParseError:
         _failed(credential, NOT_FLEX)
         session.commit()
-        return
+        return 0
 
     linked: dict[str, Account] = {}
     for candidate in session.scalars(
@@ -102,6 +105,7 @@ def run_sync(session: Session, credential: BrokerCredential, *, http: httpx.Clie
     credential.last_result = results
     credential.last_synced_at = credential.last_attempt_at
     session.commit()
+    return sum(int(entry["imported"]) for entry in results)
 
 
 def sync_is_due(credential: BrokerCredential, now: dt.datetime) -> bool:
@@ -113,9 +117,16 @@ def sync_is_due(credential: BrokerCredential, now: dt.datetime) -> bool:
 class SyncService:
     """Starts sync runs in the background, at most one at a time per connection, plus the daily auto-sync."""
 
-    def __init__(self, session_factory: sessionmaker[Session], *, transport: httpx.BaseTransport | None = None) -> None:
+    def __init__(
+        self,
+        session_factory: sessionmaker[Session],
+        *,
+        transport: httpx.BaseTransport | None = None,
+        on_imported: Callable[[], None] | None = None,
+    ) -> None:
         self._session_factory = session_factory
         self._transport = transport
+        self._on_imported = on_imported  # e.g. price the new holdings right away
         self._running: set[int] = set()
         self._lock = threading.Lock()
         self._stop = threading.Event()
@@ -162,8 +173,9 @@ class SyncService:
         try:
             with self._session_factory() as session, self._client() as http:
                 credential = session.get(BrokerCredential, credential_id)
-                if credential is not None:
-                    run_sync(session, credential, http=http)
+                imported = run_sync(session, credential, http=http) if credential is not None else 0
+            if imported and self._on_imported is not None:
+                self._on_imported()
         except Exception:
             logger.exception("IBKR sync %s failed", credential_id)
             with self._session_factory() as session:

@@ -45,7 +45,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             app.state.setup_guard.arm()
     app.state.market = MarketDataService(SessionLocal, settings)
     app.state.market.refresh_in_background()
-    app.state.sync = SyncService(SessionLocal)
+    app.state.sync = SyncService(SessionLocal, on_imported=app.state.market.holdings_changed)
     if settings.live_market_data:  # offline mode (and tests) never reach out to IBKR on their own
         app.state.sync.start_scheduler()
     yield

@@ -126,6 +126,7 @@ class PreviewTransaction(BaseModel):
     row: int | None
     duplicate: bool
     transaction: StandardTransaction
+    group: str | None = None  # key into ImportPreview.groups when the import spans several accounts
 
 
 class PreviewSummary(BaseModel):
@@ -133,6 +134,23 @@ class PreviewSummary(BaseModel):
     new: int
     duplicates: int
     errors: int
+
+
+class PreviewGroup(BaseModel):
+    """Rows bound for one account: a sub-account of a statement (Erste TBSZ 2024) or one file format."""
+
+    key: str
+    label: str
+    parser_key: str
+    account_hint: AccountHint | None
+    # The account these rows go into; None = not imported unless one is chosen.
+    suggested_account_id: int | None
+    summary: PreviewSummary
+
+
+class SkippedFile(BaseModel):
+    filename: str
+    reason: str
 
 
 class ImportPreview(BaseModel):
@@ -150,6 +168,9 @@ class ImportPreview(BaseModel):
     summary: PreviewSummary = Field(default_factory=lambda: PreviewSummary(total=0, new=0, duplicates=0, errors=0))
     account_hint: AccountHint | None = None
     suggested_account_id: int | None = None
+    file_count: int = 1
+    groups: list[PreviewGroup] = Field(default_factory=list)  # set when rows go to several accounts
+    skipped_files: list[SkippedFile] = Field(default_factory=list)
 
 
 class ImportCommitRequest(BaseModel):

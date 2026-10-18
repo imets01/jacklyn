@@ -49,6 +49,7 @@ def _build[K](points: Iterable[tuple[K, dt.date, Decimal]]) -> dict[K, Series]:
 class PriceTable:
     def __init__(self, series: dict[int, Series]) -> None:
         self.series = series
+        self.fallback: set[int] = set()  # assets priced only by their own trades
 
     @classmethod
     def load(cls, session: Session, asset_ids: Iterable[int]) -> "PriceTable":
@@ -62,6 +63,7 @@ class PriceTable:
 
     def add_fallback(self, asset_id: int, date: dt.date, price: Decimal) -> None:
         """Use a trade price where no market data exists (e.g. an unlisted fund)."""
+        self.fallback.add(asset_id)
         series = self.series.setdefault(asset_id, Series([], []))
         index = bisect_right(series.dates, date)
         if index and series.dates[index - 1] == date:
@@ -78,8 +80,9 @@ class PriceTable:
         return series.at(on) if series else None
 
     def before(self, asset_id: int, on: dt.date) -> tuple[dt.date, Decimal] | None:
+        """The previous close. None for trade-priced assets: two trades months apart are not a day's move."""
         series = self.series.get(asset_id)
-        return series.before(on) if series else None
+        return series.before(on) if series and asset_id not in self.fallback else None
 
 
 class FxTable:

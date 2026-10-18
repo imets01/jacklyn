@@ -34,12 +34,17 @@ class RowError(BaseModel):
 class ParsedRow(BaseModel):
     row: int | None = None
     transaction: StandardTransaction
+    # For files that cover several accounts (Erste sub-accounts, multi-account Flex queries): the key of
+    # the account this row belongs to in `ParseResult.accounts`. None means "the one account imported into".
+    account: str | None = None
 
 
 class AccountHint(BaseModel):
     broker: str | None = None
     external_account_id: str | None = None
     currency: str | None = None
+    name: str | None = None  # how the statement calls the account, e.g. "TBSZ 2024"
+    tbsz_year: int | None = None
 
 
 class ParseResult(BaseModel):
@@ -48,6 +53,8 @@ class ParseResult(BaseModel):
     broker: str | None = None
     rows: list[ParsedRow] = Field(default_factory=list)
     errors: list[RowError] = Field(default_factory=list)
+    # Account key -> hint, when rows carry `account`.
+    accounts: dict[str, AccountHint] = Field(default_factory=dict)
     warnings: list[str] = Field(default_factory=list)
     account_hint: AccountHint | None = None
 

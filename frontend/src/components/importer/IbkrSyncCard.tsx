@@ -206,8 +206,7 @@ export function IbkrSyncCard({ accounts }: { accounts: AccountSummary[] }) {
       <AccountFormModal
         open={newAccountFor !== null}
         onClose={() => setNewAccountFor(null)}
-        defaultBroker="Interactive Brokers"
-        defaultExternalId={newAccountFor}
+        defaults={{ broker: 'Interactive Brokers', external_account_id: newAccountFor }}
         onSaved={(account) => startRun(account.id)}
       />
     </Card>

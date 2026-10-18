@@ -7,6 +7,7 @@ and Yahoo is hit at most once per TTL. Refreshes run on a background thread.
 import datetime as dt
 import logging
 import math
+import re
 import threading
 from collections.abc import Collection
 from dataclasses import dataclass, field
@@ -107,6 +108,7 @@ class MarketDataService:
         self._settings = settings
         self._lock = threading.Lock()
         self._lookup_attempted: set[int] = set()  # asset ids already probed this process
+        self._again = False  # new holdings arrived during a refresh: run once more right after it
         self.last_refresh_at: dt.datetime | None = None
         self.last_error: str | None = None
 
@@ -133,10 +135,19 @@ class MarketDataService:
         }
 
     def refresh_in_background(self, *, force: bool = False) -> bool:
-        if not self.enabled or self.refreshing or (not force and not self.is_stale()):
+        if not self.enabled:
+            return False
+        if self.refreshing:
+            self._again = self._again or force
+            return False
+        if not force and not self.is_stale():
             return False
         threading.Thread(target=self.refresh, name="market-data-refresh", daemon=True).start()
         return True
+
+    def holdings_changed(self) -> None:
+        """New transactions were stored: price new assets now instead of at the next 15-minute refresh."""
+        self.refresh_in_background(force=True)
 
     def refresh(self) -> RefreshReport:
         report = RefreshReport()
@@ -159,6 +170,9 @@ class MarketDataService:
         finally:
             self.last_refresh_at = dt.datetime.now(dt.UTC)
             self._lock.release()
+        if self._again:
+            self._again = False
+            self.refresh_in_background(force=True)
         return report
 
     # ---------------------------------------------------------------- assets
@@ -227,7 +241,7 @@ class MarketDataService:
             .subquery()
         )
         rows = session.execute(
-            select(Asset, Transaction.unit_price)
+            select(Asset, Transaction.unit_price, Transaction.trade_date)
             .join(last_trade, last_trade.c.asset_id == Asset.id)
             .join(
                 Transaction,
@@ -237,12 +251,26 @@ class MarketDataService:
         ).all()
         seen: set[int] = set()
         changed: list[int] = []
-        for asset, reference_price in rows:
+        for asset, reference_price, trade_date in rows:
             if asset.id in seen or asset.id in self._lookup_attempted or reference_price is None:
                 continue
             seen.add(asset.id)
             self._lookup_attempted.add(asset.id)
-            ticker = find_listing(asset.symbol, asset.currency, reference_price, exclude=asset.yf_ticker)
+            ticker = (
+                None
+                if ISIN.fullmatch(asset.symbol)
+                else find_listing(asset.symbol, asset.currency, reference_price, exclude=asset.yf_ticker)
+            )
+            if ticker is None and asset.isin:
+                ticker = find_listing_for_isin(
+                    asset.isin,
+                    asset.name,
+                    asset.currency,
+                    trade_date,
+                    reference_price,
+                    venue=asset.exchange,
+                    exclude=asset.yf_ticker,
+                )
             if ticker:
                 logger.info("Matched %s (%s) to Yahoo listing %s", asset.symbol, asset.currency, ticker)
                 asset.yf_ticker = ticker
@@ -427,3 +455,70 @@ def find_listing(symbol: str, currency: str, reference_price: Decimal, *, exclud
         if Decimal("0.2") <= ratio <= Decimal("5"):  # guards against a same-symbol, different security
             return ticker
     return None
+
+
+ISIN = re.compile(r"^[A-Z]{2}[A-Z0-9]{9}[0-9]$")
+MAX_ISIN_CANDIDATES = 24
+SAME_FUND_TOLERANCE = Decimal("0.03")
+# Market identifier codes (as brokers report the venue) -> Yahoo suffix, to prefer the line actually traded.
+VENUE_SUFFIXES = {
+    "XETR": ".DE",
+    "XFRA": ".F",
+    "XAMS": ".AS",
+    "XPAR": ".PA",
+    "XMIL": ".MI",
+    "XSWX": ".SW",
+    "XLON": ".L",
+    "XBUD": ".BD",
+}
+
+
+def find_listing_for_isin(
+    isin: str,
+    name: str | None,
+    currency: str,
+    trade_date: dt.date,
+    trade_price: Decimal,
+    *,
+    venue: str | None = None,
+    exclude: str | None = None,
+) -> str | None:
+    """A Yahoo listing for an asset known only by ISIN (e.g. from Erste reports, which carry no ticker).
+
+    Yahoo has no exact ISIN lookup, so candidates come from searching the ISIN and the name, plus each
+    candidate's symbol on the exchanges that quote in `currency`. A candidate must quote in that currency and
+    have closed within 3% of the price actually paid around the trade date: the same fund on another exchange
+    passes, a look-alike fund or a listing without price history (Yahoo's ".SG" ISIN lines) does not.
+    """
+    yf = load_yfinance()
+    candidates: list[str] = []
+    for query in (isin, name):
+        if not query:
+            continue
+        try:
+            quotes = yf.Search(query, max_results=10, news_count=0).quotes
+        except Exception:  # noqa: BLE001 - search is best effort
+            continue
+        candidates += [str(q["symbol"]) for q in quotes if q.get("symbol") and str(q["symbol"]) not in candidates]
+    for symbol in list(candidates):
+        base = symbol.split(".")[0]
+        candidates += [v for s in LISTING_SUFFIXES.get(currency, ()) if (v := f"{base}{s}") not in candidates]
+    if preferred := VENUE_SUFFIXES.get((venue or "").upper()):
+        candidates.sort(key=lambda ticker: not ticker.endswith(preferred))  # stable: keeps search order otherwise
+    for ticker in candidates[:MAX_ISIN_CANDIDATES]:
+        if ticker != exclude and _closed_near(yf, ticker, currency, trade_date, trade_price):
+            return ticker
+    return None
+
+
+def _closed_near(yf: Any, ticker: str, currency: str, day: dt.date, price: Decimal) -> bool:
+    try:
+        listing = yf.Ticker(ticker)
+        history = listing.history(start=day - dt.timedelta(days=4), end=day + dt.timedelta(days=5))
+        listed_currency = (listing.history_metadata or {}).get("currency")
+    except Exception:  # noqa: BLE001 - unknown symbols raise all sorts of errors
+        return False
+    if listed_currency != currency or history is None or history.empty:
+        return False
+    closes = [Decimal(repr(float(v))) for v in history["Close"] if not math.isnan(v)]
+    return any(abs(close / price - 1) <= SAME_FUND_TOLERANCE for close in closes)

@@ -1,12 +1,13 @@
-import { CircleAlert } from 'lucide-react'
+import { CircleAlert, Info } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
 
 import { useAccounts, useCommitImport, usePreviewImport, useSaveMapping } from '../api/hooks'
-import type { ColumnMappingConfig, ImportPreview, TablePreview } from '../api/types'
-import { AccountFormModal } from '../components/accounts/AccountFormModal'
+import type { ColumnMappingConfig, ImportPreview, PreviewGroup, TablePreview } from '../api/types'
+import { AccountFormModal, type AccountDefaults } from '../components/accounts/AccountFormModal'
 import { ColumnMapperModal, type MapperApply } from '../components/importer/ColumnMapperModal'
 import { DropZone } from '../components/importer/DropZone'
+import { GroupedPreview } from '../components/importer/GroupedPreview'
 import { IbkrSyncCard } from '../components/importer/IbkrSyncCard'
 import { ImportHistory, SavedPresets, SupportedFormats } from '../components/importer/ImportSidebar'
 import { PreviewPanel } from '../components/importer/PreviewPanel'
@@ -19,6 +20,20 @@ function defaultSelection(preview: ImportPreview): Set<number> {
   return new Set(preview.transactions.flatMap((row, index) => (row.duplicate ? [] : [index])))
 }
 
+/** A new account for a preview group, prefilled from what the statement says (e.g. "Erste TBSZ 2024"). */
+function accountDefaults(preview: ImportPreview | null, group: PreviewGroup | null): AccountDefaults {
+  const hint = group?.account_hint ?? preview?.account_hint ?? null
+  const broker = hint?.broker ?? preview?.detection?.broker ?? undefined
+  return {
+    name: group ? [broker?.split(' ')[0], hint?.name ?? group.label].filter(Boolean).join(' ') : undefined,
+    broker,
+    account_type: hint?.tbsz_year ? 'tbsz' : undefined,
+    tbsz_year: hint?.tbsz_year ?? undefined,
+    currency: hint?.currency ?? undefined,
+    external_account_id: hint?.external_account_id ?? undefined,
+  }
+}
+
 export function ImportPage() {
   const { baseCurrency } = usePreferences()
   const accounts = useAccounts(baseCurrency)
@@ -26,8 +41,10 @@ export function ImportPage() {
   const commitMutation = useCommitImport()
   const saveMapping = useSaveMapping()
 
-  const [file, setFile] = useState<File | null>(null)
+  const [files, setFiles] = useState<File[]>([])
+  const [ignoredFiles, setIgnoredFiles] = useState(0)
   const [accountId, setAccountId] = useState<number | null>(null)
+  const [groupAccounts, setGroupAccounts] = useState<Record<string, number | null>>({})
   const [mapping, setMapping] = useState<ColumnMappingConfig | null>(null)
   const [preview, setPreview] = useState<ImportPreview | null>(null)
   const [selected, setSelected] = useState<Set<number>>(new Set())
@@ -36,16 +53,32 @@ export function ImportPage() {
   // Bumped on every open so the mapper starts from the latest mapping/table (fresh component state).
   const [mapperSession, setMapperSession] = useState(0)
   const [mapperError, setMapperError] = useState<string | null>(null)
-  const [newAccountOpen, setNewAccountOpen] = useState(false)
+  // Open with null for the single-account preview, or with the group a new account is for.
+  const [newAccountFor, setNewAccountFor] = useState<{ group: PreviewGroup | null } | null>(null)
+  const [committingGroups, setCommittingGroups] = useState(false)
   const navigate = useNavigate()
+  // The column mapper and per-row selection only apply to a single statement going into one account.
+  const file = files.length === 1 ? files[0] : null
+  const grouped = preview !== null && preview.groups.length > 0
 
   const runPreview = (
-    nextFile: File,
-    options: { accountId: number | null; mapping: ColumnMappingConfig | null; parserKey?: string },
+    nextFiles: File[],
+    options: {
+      accountId: number | null
+      mapping: ColumnMappingConfig | null
+      parserKey?: string
+      groupAccounts?: Record<string, number | null>
+    },
     onDone?: (result: ImportPreview) => void,
   ) => {
     previewMutation.mutate(
-      { file: nextFile, accountId: options.accountId, mapping: options.mapping, parserKey: options.parserKey ?? null },
+      {
+        files: nextFiles,
+        accountId: options.accountId,
+        mapping: options.mapping,
+        parserKey: options.parserKey ?? null,
+        groupAccounts: options.groupAccounts,
+      },
       {
         onSuccess: (result) => {
           setPreview(result)
@@ -63,25 +96,33 @@ export function ImportPage() {
     )
   }
 
-  const onFile = (nextFile: File) => {
-    setFile(nextFile)
+  const onFiles = (nextFiles: File[], ignored: number) => {
+    setFiles(nextFiles)
+    setIgnoredFiles(ignored)
     setMapping(null)
     setTable(null)
     setPreview(null)
-    runPreview(nextFile, { accountId, mapping: null })
+    setGroupAccounts({})
+    runPreview(nextFiles, { accountId: nextFiles.length === 1 ? accountId : null, mapping: null })
   }
 
   const onAccountChange = (id: number | null) => {
     setAccountId(id)
     // Duplicate flags depend on the target account: re-check them.
-    if (file && preview?.status === 'parsed') runPreview(file, { accountId: id, mapping })
+    if (file && preview?.status === 'parsed') runPreview([file], { accountId: id, mapping })
+  }
+
+  const onGroupAccountChange = (group: PreviewGroup, id: number | null) => {
+    const next = { ...groupAccounts, [group.key]: id }
+    setGroupAccounts(next)
+    runPreview(files, { accountId: null, mapping: null, groupAccounts: next })
   }
 
   const onApplyMapping = ({ config, presetName }: MapperApply) => {
     if (!file) return
     setMapperError(null)
     const apply = () =>
-      runPreview(file, { accountId, mapping: config }, (result) => {
+      runPreview([file], { accountId, mapping: config }, (result) => {
         setMapping(config)
         if (result.status === 'parsed' && result.summary.total > 0) setMapperOpen(false)
         else setMapperError(result.message ?? result.errors[0]?.message ?? 'No transactions could be read with this mapping.')
@@ -96,7 +137,7 @@ export function ImportPage() {
 
   const reloadTable = async (config: ColumnMappingConfig): Promise<TablePreview | null> => {
     if (!file) return null
-    const result = await previewMutation.mutateAsync({ file, accountId, mapping: { ...config, columns: {} } })
+    const result = await previewMutation.mutateAsync({ files: [file], accountId, mapping: { ...config, columns: {} } })
     return result.table
   }
 
@@ -120,17 +161,61 @@ export function ImportPage() {
       {
         onSuccess: (result) =>
           navigate(`/accounts/${accountId}`, {
-            state: importedState(preview.filename ?? 'Import', result.imported, result.duplicates),
+            state: importedState(preview.filename, result.imported, result.duplicates),
           }),
       },
     )
   }
 
+  /** One commit per account; each is idempotent, so a retry after a failure only adds what is missing. */
+  const commitGroups = async () => {
+    if (!preview) return
+    const parts = preview.groups.flatMap((group) => {
+      if (group.suggested_account_id === null) return []
+      const rows = preview.transactions.filter((row) => row.group === group.key && !row.duplicate)
+      return [{ group, accountId: group.suggested_account_id, transactions: rows.map((row) => row.transaction) }]
+    })
+    const names = new Map((accounts.data ?? []).map((account) => [account.id, account.name]))
+    const results: { accountId: number; imported: number; duplicates: number }[] = []
+    setCommittingGroups(true)
+    try {
+      for (const part of parts) {
+        if (part.transactions.length === 0) {
+          results.push({ accountId: part.accountId, imported: 0, duplicates: part.group.summary.duplicates })
+          continue
+        }
+        const result = await commitMutation.mutateAsync({
+          account_id: part.accountId,
+          transactions: part.transactions,
+          parser_key: part.group.parser_key,
+          filename: preview.file_count > 1 ? `${preview.filename} · ${part.group.label}` : preview.filename,
+          file_sha256: null,
+        })
+        results.push({ accountId: part.accountId, imported: result.imported, duplicates: result.duplicates + part.group.summary.duplicates })
+      }
+    } catch {
+      return // shown below the preview; already committed accounts keep their rows, and a retry skips them
+    } finally {
+      setCommittingGroups(false)
+    }
+    const [target, ...others] = [...results].sort((a, b) => b.imported - a.imported)
+    if (!target) return
+    navigate(`/accounts/${target.accountId}`, {
+      state: importedState(
+        preview.filename,
+        target.imported,
+        target.duplicates,
+        others.filter((other) => other.imported).map((other) => ({ name: names.get(other.accountId) ?? 'another account', imported: other.imported })),
+      ),
+    })
+  }
+
   const clear = () => {
-    setFile(null)
+    setFiles([])
     setPreview(null)
     setMapping(null)
     setTable(null)
+    setGroupAccounts({})
   }
 
   const accountList = accounts.data ?? []
@@ -148,7 +233,13 @@ export function ImportPage() {
         <div className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
           <div className="flex flex-col gap-4">
             <IbkrSyncCard accounts={accountList} />
-            <DropZone onFile={onFile} busy={previewMutation.isPending && !mapperOpen} />
+            <DropZone onFiles={onFiles} busy={previewMutation.isPending && !mapperOpen && !grouped} />
+            {ignoredFiles > 0 ? (
+              <Notice tone="neutral" icon={<Info className="size-4" />}>
+                {ignoredFiles} file{ignoredFiles === 1 ? ' was' : 's were'} left out of the folder: only CSV, Excel and XML
+                files are read.
+              </Notice>
+            ) : null}
             {previewMutation.error && !mapperOpen ? (
               <Notice tone="negative" icon={<CircleAlert className="size-4" />}>
                 {previewMutation.error.message}
@@ -175,13 +266,24 @@ export function ImportPage() {
           </div>
         </div>
 
-        {preview && preview.status === 'parsed' ? (
+        {preview && grouped ? (
+          <GroupedPreview
+            preview={preview}
+            accounts={accountList}
+            onGroupAccountChange={onGroupAccountChange}
+            onNewAccount={(group) => setNewAccountFor({ group })}
+            onCommit={() => void commitGroups()}
+            committing={committingGroups}
+            busy={previewMutation.isPending}
+            onClear={clear}
+          />
+        ) : preview && preview.status === 'parsed' ? (
           <PreviewPanel
             preview={preview}
             accounts={accountList}
             accountId={accountId}
             onAccountChange={onAccountChange}
-            onNewAccount={() => setNewAccountOpen(true)}
+            onNewAccount={() => setNewAccountFor({ group: null })}
             selected={selected}
             onSelectedChange={setSelected}
             onCommit={commit}
@@ -214,10 +316,14 @@ export function ImportPage() {
         />
       ) : null}
       <AccountFormModal
-        open={newAccountOpen}
-        onClose={() => setNewAccountOpen(false)}
-        defaultBroker={preview?.account_hint?.broker ?? preview?.detection?.broker ?? null}
-        onSaved={(account) => onAccountChange(account.id)}
+        open={newAccountFor !== null}
+        onClose={() => setNewAccountFor(null)}
+        defaults={accountDefaults(preview, newAccountFor?.group ?? null)}
+        onSaved={(account) => {
+          const group = newAccountFor?.group
+          if (group) onGroupAccountChange(group, account.id)
+          else onAccountChange(account.id)
+        }}
       />
     </>
   )

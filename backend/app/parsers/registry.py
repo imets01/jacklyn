@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from app.parsers.base import BaseBrokerParser
 from app.parsers.erste import ErsteNetBrokerParser
+from app.parsers.erste_reports import ErsteDailyReportParser
 from app.parsers.ibkr import IBKRActivityCSVParser, IBKRFlexXMLParser
 from app.parsers.lightyear import LightyearCSVParser
 from app.parsers.source import SourceFile
@@ -11,6 +12,7 @@ PRESET_PARSERS: tuple[BaseBrokerParser, ...] = (
     IBKRFlexXMLParser(),
     IBKRActivityCSVParser(),
     LightyearCSVParser(),
+    ErsteDailyReportParser(),
     ErsteNetBrokerParser(),
 )
 DETECTION_THRESHOLD = 0.5

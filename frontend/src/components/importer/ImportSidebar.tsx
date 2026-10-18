@@ -8,7 +8,7 @@ import { Badge, Card, CardHeader, Spinner } from '../ui/primitives'
 const PRESETS = [
   { broker: 'Interactive Brokers', formats: 'Activity Statement CSV · Flex Query XML' },
   { broker: 'Lightyear', formats: 'Account statement CSV' },
-  { broker: 'Erste NetBroker', formats: 'CSV / XLS / XLSX (Hungarian, cp1250)' },
+  { broker: 'Erste NetBroker', formats: 'Daily reports (.xls): drop the whole folder · CSV / XLSX exports' },
   { broker: 'Anything else', formats: 'Universal column mapper for any CSV or Excel' },
 ]
 
