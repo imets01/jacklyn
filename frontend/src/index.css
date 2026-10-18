@@ -88,6 +88,27 @@
 }
 
 @theme inline {
+  /* Logo leaf: a small sway on hover, settling back like a leaf on its stem. */
+  --animate-leaf-wiggle: leaf-wiggle 0.9s ease-in-out;
+  @keyframes leaf-wiggle {
+    0%,
+    100% {
+      transform: rotate(0deg);
+    }
+    20% {
+      transform: rotate(-9deg);
+    }
+    45% {
+      transform: rotate(7deg);
+    }
+    70% {
+      transform: rotate(-3deg);
+    }
+    85% {
+      transform: rotate(1.5deg);
+    }
+  }
+
   --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
   --font-display: 'Plus Jakarta Sans Variable', 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
 
