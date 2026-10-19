@@ -36,7 +36,7 @@ def test_detects_known_brokers(name: str, parser_key: str) -> None:
 
 
 def test_unknown_csv_is_not_claimed_by_a_preset() -> None:
-    assert detect_parser(source("revolut_trading.csv")) is None
+    assert detect_parser(source("unknown_broker.csv")) is None
 
 
 def test_ibkr_activity_statement() -> None:
@@ -137,7 +137,7 @@ def test_erste_netbroker_cp1250_semicolons_and_comma_decimals() -> None:
 
 
 def test_generic_mapper_guesses_and_parses_unknown_csv() -> None:
-    src = source("revolut_trading.csv")
+    src = source("unknown_broker.csv")
     preview = build_table_preview(src.table)
     columns = preview.suggested.columns
     assert columns[MappingField.DATE] == "Date"

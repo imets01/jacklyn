@@ -156,14 +156,14 @@ def test_import_known_broker_preview_commit_and_dedupe(client: TestClient) -> No
 
 def test_unknown_csv_goes_through_column_mapper_and_saved_preset(client: TestClient) -> None:
     account = _create_account(client, name="Revolut", currency="USD")
-    preview = _upload(client, "revolut_trading.csv", account_id=str(account["id"]))
+    preview = _upload(client, "unknown_broker.csv", account_id=str(account["id"]))
     assert preview["status"] == "needs_mapping"
     table = preview["table"]
     assert table["headers"][:3] == ["Date", "Ticker", "Type"]
     assert len(table["sample_rows"]) == 5
 
     mapping = table["suggested"]
-    mapped = _upload(client, "revolut_trading.csv", account_id=str(account["id"]), mapping=json.dumps(mapping))
+    mapped = _upload(client, "unknown_broker.csv", account_id=str(account["id"]), mapping=json.dumps(mapping))
     assert mapped["status"] == "parsed"
     assert mapped["summary"]["total"] == 5
 
@@ -172,10 +172,10 @@ def test_unknown_csv_goes_through_column_mapper_and_saved_preset(client: TestCli
         json={"name": "Revolut Trading CSV", "header_signature": table["header_signature"], "config": mapping},
     )
     assert saved.status_code == 201, saved.text
-    auto = _upload(client, "revolut_trading.csv", account_id=str(account["id"]))
+    auto = _upload(client, "unknown_broker.csv", account_id=str(account["id"]))
     assert auto["status"] == "parsed"
     assert auto["mapping_used"]["name"] == "Revolut Trading CSV"
-    forced = _upload(client, "revolut_trading.csv", parser_key="generic")
+    forced = _upload(client, "unknown_broker.csv", parser_key="generic")
     assert forced["status"] == "needs_mapping"
 
     assert any(m["name"] == "Revolut Trading CSV" for m in client.get("/api/mappings").json())

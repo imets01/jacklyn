@@ -72,6 +72,8 @@ Jacklyn is built to be shared with a few trusted people without exposing your se
   `GenericCSVParser` takes a JSON `ColumnMappingConfig` (columns, date format, decimal separator,
   type-value map, defaults), so any tabular statement imports without new code. The Lightyear and Erste
   presets are themselves alias-based mapping configs on top of it.
+  Revolut trading statements have their own parser (`parsers/revolut.py`): its split rows and its 2023
+  transfers between Revolut companies are skipped, since Jacklyn applies splits itself from market data.
 - **Many files, many accounts**: the importer takes a whole folder at once. Erste NetBroker only exports one
   report per day (`parsers/erste_reports.py`); every row is tagged with its sub-account (TBSZ 2024, TBSZ 2025,
   Normál), and the preview routes each group to the matching account (TBSZ vintage + broker, or account ID for

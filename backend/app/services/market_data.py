@@ -221,14 +221,11 @@ class MarketDataService:
             query = query.where(Asset.id.in_(only))
         plans: dict[str, tuple[Asset, dt.date]] = {}
         for asset, first_trade in session.execute(query).all():
-            # Splits must be known from the first trade on: fetch the whole history once per asset.
-            start = (
-                first_trade - dt.timedelta(days=7)
-                if asset.splits_through is None
-                else self._asset_start(session, asset, first_trade)
-            )
+            start = self._asset_start(session, asset, first_trade)
             if asset.yf_ticker:
                 plans[asset.yf_ticker] = (asset, start)
+                if asset.splits_through is None:
+                    _backfill_splits(session, asset, asset.yf_ticker)
         silent: set[int] = set()
         for start, tickers in _group_by_start({t: s for t, (_, s) in plans.items()}).items():
             try:
@@ -246,7 +243,8 @@ class MarketDataService:
                     report.rows_written += _upsert_prices(session, asset.id, points)
                     report.assets_updated += 1
                     _store_splits(session, asset.id, history.splits)
-                    asset.splits_through = max(points)
+                    if asset.splits_through is not None:  # only after the full history was fetched once
+                        asset.splits_through = max(asset.splits_through, *points)
                 else:
                     silent.add(asset.id)
         if silent:  # a ticker that worked before may just be delisted: keep its history and stop there
@@ -409,13 +407,27 @@ def _group_by_start(starts: dict[str, dt.date]) -> dict[dt.date, list[str]]:
     return groups
 
 
+def _backfill_splits(session: Session, asset: Asset, ticker: str) -> None:
+    """Every split the listing ever had, once per asset: trades may be imported from long before the prices
+    Jacklyn downloaded (the daily download only sees splits inside its window)."""
+    try:
+        series = load_yfinance().Ticker(ticker).splits
+    except Exception as exc:  # noqa: BLE001 - retried at the next refresh
+        logger.info("Split history for %s unavailable: %s", ticker, exc)
+        return
+    _store_splits(session, asset.id, {_day(index): value for index, value in series.items() if value})
+    asset.splits_through = dt.date.today()
+
+
 def _store_splits(session: Session, asset_id: int, splits: dict[dt.date, Any]) -> None:
     known = set(session.scalars(select(AssetSplit.split_date).where(AssetSplit.asset_id == asset_id)))
     for day, raw in splits.items():
         ratio = _to_decimal(raw, PRICE_QUANTUM)
         if ratio is not None and ratio > 0 and ratio != 1 and day not in known:
             session.add(AssetSplit(asset_id=asset_id, split_date=day, ratio=ratio))
+            known.add(day)
             logger.info("Stock split for asset %s on %s: %s for 1", asset_id, day, ratio)
+    session.flush()  # the full history and the daily download can report the same split in one refresh
 
 
 def _upsert_prices(session: Session, asset_id: int, points: dict[dt.date, Decimal]) -> int:

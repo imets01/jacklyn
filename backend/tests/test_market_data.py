@@ -3,6 +3,7 @@ import threading
 from decimal import Decimal
 from typing import Any, ClassVar
 
+import pandas as pd
 import pytest
 import yfinance
 from sqlalchemy import select
@@ -232,20 +233,28 @@ def test_a_trade_the_broker_already_restated_is_left_alone(db: Session, user: Us
     assert engine.replay()[account.id].positions[nvda.id].quantity == Decimal("7.0614124")
 
 
-def test_refresh_stores_splits_and_backfills_them_once(
+def test_refresh_fetches_the_whole_split_history_once(
     db: Session, user: User, account: Account, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     asset = _hold(db, user, account, "SPLT", "SPLT", "100")
-    db.add(
-        AssetPrice(asset_id=asset.id, price_date=dt.date(2025, 9, 1), close=Decimal(50), source=PriceSource.YFINANCE)
-    )
-    db.commit()
+    lookups: list[str] = []
 
-    first = _refresh_assets(db, monkeypatch, {"SPLT": 50.0}, {"SPLT": {dt.date(2025, 6, 2): 2.0}})
-    assert first == [(["SPLT"], dt.date(2025, 2, 24))]  # from the first trade, although prices exist
-    assert [(s.split_date, s.ratio) for s in db.scalars(select(AssetSplit))] == [(dt.date(2025, 6, 2), Decimal(2))]
-    assert asset.splits_through == dt.date(2025, 3, 4)
+    class SplitHistory:
+        def __init__(self, ticker: str) -> None:
+            lookups.append(ticker)
+            days = pd.to_datetime(["2014-04-03", "2025-06-02"]).tz_localize("America/New_York")
+            self.splits = pd.Series([1.998, 2.0], index=days)
 
-    again = _refresh_assets(db, monkeypatch, {"SPLT": 50.0}, {"SPLT": {dt.date(2025, 6, 2): 2.0}})
-    assert again[0][1] > dt.date(2025, 2, 24)  # incremental afterwards
-    assert len(db.scalars(select(AssetSplit)).all()) == 1
+    monkeypatch.setattr(yfinance, "Ticker", SplitHistory)
+    _refresh_assets(db, monkeypatch, {"SPLT": 50.0})
+    stored = [(s.split_date, s.ratio) for s in db.scalars(select(AssetSplit).order_by(AssetSplit.split_date))]
+    assert stored == [
+        (dt.date(2014, 4, 3), Decimal("1.998")),
+        (dt.date(2025, 6, 2), Decimal(2)),
+    ]  # all, not just since trades
+    assert asset.splits_through == dt.date.today()
+
+    # Afterwards new splits come with the daily download; the full history is not fetched again.
+    _refresh_assets(db, monkeypatch, {"SPLT": 50.0}, {"SPLT": {dt.date(2025, 3, 4): 3.0}})
+    assert lookups == ["SPLT"]
+    assert len(db.scalars(select(AssetSplit)).all()) == 3

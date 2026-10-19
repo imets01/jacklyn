@@ -62,13 +62,25 @@ export function useUpdateMe() {
 }
 
 export function useSummary(base: string) {
-  return useQuery({
+  const client = useQueryClient()
+  const query = useQuery({
     queryKey: queryKeys.summary(base),
     queryFn: () => api.get<PortfolioSummary>('/api/portfolio/summary', { base }),
     placeholderData: keepPreviousData,
     // Quotes refresh server-side on a TTL; poll gently so the dashboard stays live.
-    refetchInterval: (query) => (query.state.data?.market.refreshing ? 4_000 : 60_000),
+    refetchInterval: (current) => (current.state.data?.market.refreshing ? 4_000 : 60_000),
   })
+  // A refresh just finished (new quotes, a ticker or split found after an import): re-value everything shown.
+  // `undefined` until the first summary arrives, so only later changes count (including the first refresh
+  // after a backend restart, when the time goes from null to a value).
+  const refreshedAt = query.data ? query.data.market.last_refresh_at : undefined
+  const seen = useRef(refreshedAt)
+  useEffect(() => {
+    if (refreshedAt === undefined) return
+    if (seen.current !== undefined && refreshedAt !== seen.current) void invalidateLedger(client)
+    seen.current = refreshedAt
+  }, [refreshedAt, client])
+  return query
 }
 
 export function useHistory(base: string, range: HistoryRange, accountId?: number) {
@@ -242,11 +254,8 @@ export function useRefreshMarket() {
   const client = useQueryClient()
   return useMutation({
     mutationFn: () => api.post<MarketRefreshResult>('/api/market/refresh'),
-    onSuccess: () => {
-      // Let the background refresh land, then re-value everything.
-      window.setTimeout(() => void invalidateLedger(client), 5_000)
-      return client.invalidateQueries({ queryKey: ['summary'] })
-    },
+    // The summary then polls while the refresh runs and re-values everything once it lands (useSummary).
+    onSuccess: () => client.invalidateQueries({ queryKey: ['summary'] }),
   })
 }
 

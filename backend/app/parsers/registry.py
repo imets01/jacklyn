@@ -5,6 +5,7 @@ from app.parsers.erste import ErsteNetBrokerParser
 from app.parsers.erste_reports import ErsteDailyReportParser
 from app.parsers.ibkr import IBKRActivityCSVParser, IBKRFlexXMLParser
 from app.parsers.lightyear import LightyearCSVParser
+from app.parsers.revolut import RevolutTradingParser
 from app.parsers.source import SourceFile
 
 # Tier-1 presets, tried in this order; the highest confidence wins.
@@ -12,6 +13,7 @@ PRESET_PARSERS: tuple[BaseBrokerParser, ...] = (
     IBKRFlexXMLParser(),
     IBKRActivityCSVParser(),
     LightyearCSVParser(),
+    RevolutTradingParser(),
     ErsteDailyReportParser(),
     ErsteNetBrokerParser(),
 )
