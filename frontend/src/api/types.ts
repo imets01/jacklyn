@@ -29,6 +29,8 @@ export type TransactionType = (typeof TRANSACTION_TYPES)[number]
 
 export type AssetClass = 'stock' | 'etf' | 'fund' | 'bond' | 'crypto' | 'commodity' | 'cash' | 'other'
 export type HistoryRange = '1W' | '1M' | '3M' | 'YTD' | '1Y' | 'ALL'
+export const RETURN_PERIODS = ['YTD', '1Y', '3Y', '5Y', 'ALL'] as const
+export type ReturnPeriod = (typeof RETURN_PERIODS)[number]
 export const CHART_RANGES = ['1D', '1W', '1M', '6M', 'YTD', '1Y', '5Y', 'MAX'] as const
 export type ChartRange = (typeof CHART_RANGES)[number]
 
@@ -694,4 +696,32 @@ export interface IbkrConnectionIn {
   token?: string
   query_id: string
   auto_sync: boolean
+}
+
+/** Returns over a period in the base currency; rates are ratios (0.084 = 8.4%). */
+export interface PeriodReturn {
+  start: ISODate
+  end: ISODate
+  days: number
+  /** Rates are per year (a year or more of data); otherwise totals over the period. */
+  per_year: boolean
+  /** XIRR: what the money earned, timing of deposits included. */
+  money_weighted: Ratio | null
+  /** How the investments did, whatever was deposited when. */
+  time_weighted: Ratio | null
+  gain: Money
+  start_value: Money
+  end_value: Money
+  net_flows: Money
+}
+
+export interface AccountReturn extends PeriodReturn {
+  account_id: number
+}
+
+export interface PerformanceResponse {
+  base_currency: string
+  period: ReturnPeriod
+  total: PeriodReturn | null
+  accounts: AccountReturn[]
 }

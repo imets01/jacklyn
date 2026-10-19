@@ -3,7 +3,14 @@ from typing import Annotated
 from fastapi import APIRouter, Query
 
 from app.api.deps import BaseCurrency, CurrentUser, DbSession, MarketService
-from app.schemas.portfolio import HistoryRange, HistoryResponse, HoldingsResponse, PortfolioSummary
+from app.schemas.portfolio import (
+    HistoryRange,
+    HistoryResponse,
+    HoldingsResponse,
+    PerformanceResponse,
+    PortfolioSummary,
+    ReturnPeriod,
+)
 from app.services.portfolio import PortfolioEngine
 
 router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
@@ -38,3 +45,12 @@ def portfolio_holdings(
 ) -> HoldingsResponse:
     engine = PortfolioEngine(session, user_id=user.id, base_currency=base, account_ids=account_ids)
     return engine.holdings()
+
+
+@router.get("/performance", response_model=PerformanceResponse)
+def portfolio_performance(
+    session: DbSession, user: CurrentUser, base: BaseCurrency, period: ReturnPeriod = "ALL"
+) -> PerformanceResponse:
+    """Money- and time-weighted returns, overall and per account."""
+    engine = PortfolioEngine(session, user_id=user.id, base_currency=base)
+    return engine.performance(period)

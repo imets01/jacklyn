@@ -2,7 +2,7 @@ import { ArrowLeft, ChevronRight, Pencil, ReceiptText } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router'
 
-import { useAccount, useHoldings } from '../api/hooks'
+import { useAccount, useHoldings, usePerformance } from '../api/hooks'
 import { AccountFormModal } from '../components/accounts/AccountFormModal'
 import { AccountTypeBadge, BrokerAvatar, TbszProgress } from '../components/accounts/AccountRow'
 import { DeleteAccountCard } from '../components/accounts/DeleteAccountCard'
@@ -10,6 +10,7 @@ import { ImportedBanner } from '../components/accounts/ImportedBanner'
 import { AssetIcon } from '../components/assets/AssetIcon'
 import { CashBreakdown } from '../components/dashboard/CashBreakdown'
 import { NetWorthCard } from '../components/dashboard/NetWorthCard'
+import { ReturnRate } from '../components/dashboard/ReturnsCard'
 import { PageHeader } from '../components/layout/PageHeader'
 import { Delta } from '../components/ui/Delta'
 import { Button, Card, CardHeader, Spinner } from '../components/ui/primitives'
@@ -155,6 +156,7 @@ export function AccountDetailPage() {
                 <Delta amount={data.total_pnl} currency={baseCurrency} />
               </p>
             </Card>
+            <AccountReturnCard accountId={id} currency={baseCurrency} />
             <Card className="px-5 py-4">
               <p className="text-[13px] font-medium text-ink-3">Net invested</p>
               <p className="mt-2 font-display text-lg font-semibold text-ink"><Sensitive>{formatMoney(data.net_contributions, baseCurrency)}</Sensitive></p>
@@ -207,5 +209,26 @@ export function AccountDetailPage() {
         <DeleteAccountCard account={data} />
       </div>
     </>
+  )
+}
+
+function AccountReturnCard({ accountId, currency }: { accountId: number; currency: string }) {
+  const result = usePerformance(currency, 'ALL').data?.accounts.find((row) => row.account_id === accountId)
+  if (!result) return null
+  return (
+    <Card className="px-5 py-4">
+      <p className="text-[13px] font-medium text-ink-3">Return</p>
+      <div className="mt-2 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+        <span className="text-lg" title="Your money: what it earned, timing of deposits included">
+          <ReturnRate rate={result.money_weighted} perYear={result.per_year} />
+        </span>
+        <span className="text-sm text-ink-3">
+          investments <ReturnRate rate={result.time_weighted} perYear={result.per_year} />
+        </span>
+      </div>
+      <p className="mt-1 text-xs text-ink-3">
+        {result.per_year ? 'Per year' : 'In total'} since {formatDate(result.start)}
+      </p>
+    </Card>
   )
 }

@@ -23,7 +23,9 @@ import type {
   ImportPreview,
   ManualTransactionsIn,
   MarketRefreshResult,
+  PerformanceResponse,
   PortfolioSummary,
+  ReturnPeriod,
   SavedMapping,
   TransactionInput,
   TransactionPage,
@@ -47,7 +49,7 @@ export const queryKeys = {
 }
 
 /** Everything that depends on ledger contents; invalidated after an import or account change. */
-const LEDGER_KEYS = ['asset-options', 'summary', 'history', 'holdings', 'holding', 'accounts', 'account', 'transactions', 'import-logs', 'health']
+const LEDGER_KEYS = ['asset-options', 'performance', 'summary', 'history', 'holdings', 'holding', 'accounts', 'account', 'transactions', 'import-logs', 'health']
 
 export function useMe() {
   return useQuery({ queryKey: queryKeys.me, queryFn: () => api.get<User>('/api/me') })
@@ -91,6 +93,14 @@ export function useHistory(base: string, range: HistoryRange, accountId?: number
     queryKey: queryKeys.history(base, range, accountId),
     queryFn: () =>
       api.get<HistoryResponse>('/api/portfolio/history', { base, range, account_id: accountId ?? null }),
+    placeholderData: keepPreviousData,
+  })
+}
+
+export function usePerformance(base: string, period: ReturnPeriod) {
+  return useQuery({
+    queryKey: ['performance', base, period] as const,
+    queryFn: () => api.get<PerformanceResponse>('/api/portfolio/performance', { base, period }),
     placeholderData: keepPreviousData,
   })
 }

@@ -8,6 +8,7 @@ from app.enums import AccountType, AssetClass, TransactionType
 
 HistoryRange = Literal["1W", "1M", "3M", "YTD", "1Y", "ALL"]
 ChartRange = Literal["1D", "1W", "1M", "6M", "YTD", "1Y", "5Y", "MAX"]
+ReturnPeriod = Literal["YTD", "1Y", "3Y", "5Y", "ALL"]
 
 
 class AllocationSlice(BaseModel):
@@ -247,3 +248,29 @@ class ChartResponse(BaseModel):
     points: list[ChartPoint]
     change: Decimal | None
     change_pct: Decimal | None
+
+
+class PeriodReturn(BaseModel):
+    """Returns over a period, in the base currency. Rates are ratios (0.084 = 8.4%)."""
+
+    start: dt.date  # first day counted: the period start, or the first deposit if later
+    end: dt.date
+    days: int
+    per_year: bool  # rates are yearly (a year or more of data); otherwise totals over the period
+    money_weighted: Decimal | None  # XIRR: what your money earned, timing of deposits included
+    time_weighted: Decimal | None  # how the investments did, whatever was deposited when
+    gain: Decimal  # value change net of money put in or taken out
+    start_value: Decimal
+    end_value: Decimal
+    net_flows: Decimal  # money put in minus taken out during the period
+
+
+class AccountReturn(PeriodReturn):
+    account_id: int
+
+
+class PerformanceResponse(BaseModel):
+    base_currency: str
+    period: ReturnPeriod
+    total: PeriodReturn | None  # None when nothing was invested in the period
+    accounts: list[AccountReturn]

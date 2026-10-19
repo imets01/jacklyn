@@ -8,6 +8,7 @@ import { AccountsCard } from '../components/dashboard/AccountsCard'
 import { AllocationCard } from '../components/dashboard/AllocationCard'
 import { InvestmentsCard } from '../components/dashboard/InvestmentsCard'
 import { NetWorthCard } from '../components/dashboard/NetWorthCard'
+import { ReturnsCard } from '../components/dashboard/ReturnsCard'
 import { StatTiles } from '../components/dashboard/StatTiles'
 import { Notice, Spinner } from '../components/ui/primitives'
 import { usePreferences } from '../lib/preferences-context'
@@ -48,6 +49,7 @@ export function DashboardPage() {
             <NetWorthCard summary={summary.data} />
             <StatTiles summary={summary.data} />
           </div>
+          <ReturnsCard currency={summary.data.base_currency} accounts={summary.data.accounts} />
           <InvestmentsCard currency={summary.data.base_currency} />
           <div className="grid grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
             <AllocationCard allocations={summary.data.allocations} currency={summary.data.base_currency} />

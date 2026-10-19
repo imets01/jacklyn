@@ -98,6 +98,9 @@ Jacklyn is built to be shared with a few trusted people without exposing your se
 - **Valuation**: average-cost basis converted to the base currency at each transaction's own date, so P&L
   includes currency effects. Live quotes and FX come from yfinance in a background thread (15 min TTL) and
   are cached in `asset_prices` / `fx_rates`; the app keeps working offline from the cache.
+- **Returns** (`services/returns.py`): money-weighted (XIRR, what your money earned, timing included) and
+  time-weighted (how the investments did, for comparing accounts), from snapshots on every day money moved in or
+  out. Periods under a year show totals, not yearly rates.
 - **Asset profiles & logos**: the same refresh fills `asset_profiles` (fund issuer, TER, sector, description)
   and downloads one logo per company or fund issuer into `asset_logos`. Browsers only ever load logos from
   `/api/assets/{id}/logo` and `/api/logos/{key}` (flags, currency badges), so the CSP stays `img-src 'self'`
@@ -121,6 +124,7 @@ Jacklyn is built to be shared with a few trusted people without exposing your se
 | GET | `/api/portfolio/summary?base=CHF` | Net worth, day & all-time P&L, allocations, accounts, market status |
 | GET | `/api/portfolio/history?range=1Y&base=CHF[&account_id=]` | Value vs. net invested series |
 | GET | `/api/portfolio/holdings?base=CHF[&account_id=]` | Positions and cash balances |
+| GET | `/api/portfolio/performance?period=ALL&base=CHF` | Money-weighted (XIRR) and time-weighted returns, overall and per account; per year from one year of data |
 | GET | `/api/portfolio/holdings/{asset_id}?base=CHF` | One asset across accounts: position, fund/company info, activity |
 | GET | `/api/assets/{asset_id}/chart?range=1D…MAX` · `/api/assets/{asset_id}/logo` · `/api/logos/{key}` | Price chart (Yahoo, cached in memory), cached asset logo, country flag or currency badge |
 | GET/POST | `/api/accounts` · GET/PATCH/DELETE `/api/accounts/{id}` | Accounts with valuation; TBSZ rules enforced |

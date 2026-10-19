@@ -10,6 +10,7 @@ from collections import defaultdict
 from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass, field
 from decimal import ROUND_HALF_EVEN, Decimal
+from itertools import pairwise
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -17,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.enums import AccountType, AssetClass, PriceSource, TransactionType
 from app.models import Account, Asset, AssetLogo, AssetPrice, AssetProfile, AssetSplit, Transaction
 from app.schemas.portfolio import (
+    AccountReturn,
     AccountSummary,
     Allocations,
     AllocationSlice,
@@ -32,12 +34,16 @@ from app.schemas.portfolio import (
     HoldingDetail,
     HoldingsResponse,
     MarketStatus,
+    PerformanceResponse,
+    PeriodReturn,
     PortfolioSummary,
+    ReturnPeriod,
 )
 from app.schemas.standard import cash_flow
 from app.services.asset_info import shared_logo_urls
 from app.services.market_data import LiveStatus
 from app.services.market_tables import FxTable, PriceTable
+from app.services.returns import Snapshot, over_period, per_year, time_weighted, xirr
 from app.services.tbsz import reduced_rate_from, tax_free_from
 
 ZERO = Decimal(0)
@@ -666,6 +672,124 @@ class PortfolioEngine:
             change=money(change),
             change_pct=ratio(change, first_point.value + max(flows, ZERO)) if first_point.value or flows else None,
         )
+
+    # ------------------------------------------------------------------ performance
+
+    @staticmethod
+    def _net_flows(account: Account, ledger: Ledger) -> Decimal:
+        """Money put into the account minus money taken out, at the FX of each day.
+
+        Without cash tracking, buys are the money put in (already in `contributions`), and dividends or fees
+        paid outside the account count as money taken out or put in, since the account's value never holds them.
+        """
+        if account.track_cash:
+            return ledger.contributions
+        return ledger.contributions - ledger.income + ledger.costs
+
+    def performance(self, period: ReturnPeriod) -> PerformanceResponse:
+        """Money- and time-weighted returns over the period, overall and per account.
+
+        Accounts are valued on the evening before the period and on every day money moved in or out,
+        which is all both rates need.
+        """
+        empty = PerformanceResponse(base_currency=self.base, period=period, total=None, accounts=[])
+        if not self.transactions:
+            return empty
+        end = self.as_of
+        first = self.transactions[0].trade_date
+        start = {
+            "YTD": dt.date(end.year, 1, 1),
+            "1Y": _years_before(end, 1),
+            "3Y": _years_before(end, 3),
+            "5Y": _years_before(end, 5),
+            "ALL": first,
+        }[period]
+        opening = max(start, first) - dt.timedelta(days=1)
+        if opening >= end:
+            return empty
+        days = sorted({opening, end, *(t.trade_date for t in self.transactions if opening < t.trade_date < end)})
+
+        series: dict[int, list[Snapshot]] = {account.id: [] for account in self.accounts}
+        previous: dict[int, Decimal] | None = None
+        for day, ledgers in self._replay_through(days):
+            flows = {account.id: self._net_flows(account, ledgers[account.id]) for account in self.accounts}
+            if day not in (opening, end) and flows == previous:
+                continue  # trades inside the accounts only: nothing for the rates to account for
+            previous = flows
+            for account in self.accounts:
+                value = self._value(account, ledgers[account.id], day).total
+                series[account.id].append(Snapshot(day, value, flows[account.id]))
+
+        accounts = [
+            AccountReturn(account_id=account_id, **figures.model_dump())
+            for account_id, snapshots in series.items()
+            if (figures := _period_return(snapshots)) is not None
+        ]
+        combined = [
+            Snapshot(
+                day=snapshots[0].day,
+                value=sum((s.value for s in snapshots), ZERO),
+                net_flows=sum((s.net_flows for s in snapshots), ZERO),
+            )
+            for snapshots in zip(*series.values(), strict=True)
+        ]
+        return PerformanceResponse(
+            base_currency=self.base, period=period, total=_period_return(combined), accounts=accounts
+        )
+
+
+def _years_before(day: dt.date, years: int) -> dt.date:
+    try:
+        return day.replace(year=day.year - years)
+    except ValueError:  # 29 February
+        return day.replace(year=day.year - years, day=28)
+
+
+def _period_return(snapshots: Sequence[Snapshot]) -> PeriodReturn | None:
+    """Both rates for one account (or the sum of several) from its snapshots; None if nothing was invested."""
+    if len(snapshots) < 2:
+        return None
+    opening, closing = snapshots[0], snapshots[-1]
+    # From the investor's side: money put in is negative, the value at the end counts as taken out.
+    flows: list[tuple[dt.date, Decimal]] = []
+    if opening.value != 0:
+        flows.append((opening.day, -opening.value))
+    for before, after in pairwise(snapshots):
+        if moved := after.net_flows - before.net_flows:
+            flows.append((after.day, -moved))
+    if not flows:
+        return None
+    flows.append((closing.day, closing.value))
+    began = flows[0][0]
+    days = (closing.day - began).days
+    if days <= 0:
+        return None
+
+    yearly = days >= 365
+    money_weighted = xirr(flows)
+    if money_weighted is not None and not yearly:
+        money_weighted = over_period(money_weighted, days)
+    growth = time_weighted([s for s in snapshots if s.day >= began])
+    if growth is not None and yearly:
+        growth = per_year(growth, days)
+    net_flows = closing.net_flows - opening.net_flows
+    return PeriodReturn(
+        # The opening snapshot is the evening before the period; a first deposit starts on its own day.
+        start=began + dt.timedelta(days=1) if began == opening.day else began,
+        end=closing.day,
+        days=days,
+        per_year=yearly,
+        money_weighted=_rate(money_weighted),
+        time_weighted=_rate(growth),
+        gain=money(closing.value - opening.value - net_flows),
+        start_value=money(opening.value),
+        end_value=money(closing.value),
+        net_flows=money(net_flows),
+    )
+
+
+def _rate(value: Decimal | None) -> Decimal | None:
+    return value.quantize(BASIS_POINT, rounding=ROUND_HALF_EVEN) if value is not None else None
 
 
 def _avg_cost(position: Position) -> Decimal | None:
