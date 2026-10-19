@@ -1,4 +1,4 @@
-"""Ledger queries shared by the per-account list and the filterable transactions page."""
+"""The ledger: queries shared by the per-account list and the transactions page, and edits made by hand."""
 
 import datetime as dt
 from dataclasses import dataclass, field
@@ -6,9 +6,12 @@ from dataclasses import dataclass, field
 from sqlalchemy import ColumnElement, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.enums import TransactionType
-from app.models import Account, Asset, Transaction
-from app.schemas.api import TransactionOut, TransactionPage
+from app.enums import ImportSource, TransactionType
+from app.models import Account, Asset, DeletedTransaction, ImportLog, Transaction
+from app.schemas.api import AssetOption, TransactionOut, TransactionPage
+from app.schemas.standard import StandardTransaction
+from app.services.assets import AssetResolver
+from app.services.ingestion import unused_hashes
 
 
 @dataclass
@@ -58,9 +61,10 @@ def transaction_page(
     """Newest first. Every condition is scoped to the user, so foreign account ids simply match nothing."""
     conditions = _conditions(user_id, flt)
     base = (
-        select(Transaction, Asset, Account.name)
+        select(Transaction, Asset, Account.name, ImportLog.source)
         .join(Account, Account.id == Transaction.account_id)
         .outerjoin(Asset, Asset.id == Transaction.asset_id)
+        .outerjoin(ImportLog, ImportLog.id == Transaction.import_log_id)
         .where(*conditions)
     )
     total = session.scalar(select(func.count()).select_from(base.subquery())) or 0
@@ -88,7 +92,119 @@ def transaction_page(
                 description=tx.description,
                 external_id=tx.external_id,
                 import_log_id=tx.import_log_id,
+                manual=source is ImportSource.MANUAL,
             )
-            for tx, asset, account_name in rows
+            for tx, asset, account_name, source in rows
         ],
     )
+
+
+class TransactionNotFoundError(LookupError):
+    pass
+
+
+def _owned(session: Session, user_id: int, transaction_id: int) -> Transaction:
+    transaction = session.get(Transaction, transaction_id)
+    if transaction is None or transaction.user_id != user_id:
+        raise TransactionNotFoundError(f"Transaction {transaction_id} not found")
+    return transaction
+
+
+def _is_manual(session: Session, transaction: Transaction) -> bool:
+    log = session.get(ImportLog, transaction.import_log_id) if transaction.import_log_id else None
+    return log is not None and log.source is ImportSource.MANUAL
+
+
+def _remember_deleted(session: Session, transaction: Transaction) -> None:
+    """Keep a broker row's fingerprint, so the next import or sync of the same statement skips it.
+
+    Rows entered by hand need none: no statement will bring them back.
+    """
+    if _is_manual(session, transaction):
+        return
+    known = session.scalar(
+        select(DeletedTransaction.id).where(
+            DeletedTransaction.account_id == transaction.account_id,
+            DeletedTransaction.dedup_hash == transaction.dedup_hash,
+        )
+    )
+    if known is None:
+        session.add(
+            DeletedTransaction(
+                user_id=transaction.user_id,
+                account_id=transaction.account_id,
+                type=transaction.type,
+                currency=transaction.currency,
+                external_id=transaction.external_id,
+                dedup_hash=transaction.dedup_hash,
+            )
+        )
+
+
+def edit_transaction(
+    session: Session, user_id: int, transaction_id: int, account_id: int, values: StandardTransaction
+) -> Transaction:
+    """Overwrite a transaction with corrected values.
+
+    It keeps its fingerprint and broker ID, so re-importing the original statement still recognizes it and the
+    correction stands. Moved to another account, it counts as deleted from the first one.
+    """
+    transaction = _owned(session, user_id, transaction_id)
+    if account_id != transaction.account_id:
+        _remember_deleted(session, transaction)
+        if session.scalar(
+            select(Transaction.id).where(
+                Transaction.account_id == account_id, Transaction.dedup_hash == transaction.dedup_hash
+            )
+        ):
+            transaction.dedup_hash = unused_hashes(session, account_id, [values])[0]
+        transaction.account_id = account_id
+    asset = AssetResolver(session).resolve(values)
+    transaction.asset_id = asset.id if asset else None
+    transaction.trade_date = values.date
+    transaction.type = values.type
+    transaction.quantity = values.quantity
+    transaction.unit_price = values.unit_price
+    transaction.amount = values.amount
+    transaction.fee = values.fee
+    transaction.tax = values.tax
+    transaction.currency = values.currency
+    transaction.description = values.description or values.name
+    session.commit()
+    return transaction
+
+
+def delete_transaction(session: Session, user_id: int, transaction_id: int) -> None:
+    transaction = _owned(session, user_id, transaction_id)
+    _remember_deleted(session, transaction)
+    session.delete(transaction)
+    session.commit()
+
+
+def asset_options(session: Session, user_id: int, search: str | None, limit: int = 20) -> list[AssetOption]:
+    """Assets the user already has transactions in, for the manual entry form.
+
+    Only their own: assets are shared reference data, and suggesting others' would tell what other people hold.
+    """
+    query = (
+        select(Asset)
+        .where(Asset.id.in_(select(Transaction.asset_id).where(Transaction.user_id == user_id)))
+        .order_by(Asset.symbol)
+        .limit(limit)
+    )
+    if search and (term := search.strip()):
+        pattern = _like(term)
+        query = query.where(
+            or_(*(column.ilike(pattern, escape="\\") for column in (Asset.symbol, Asset.name, Asset.isin)))
+        )
+    return [
+        AssetOption(
+            id=asset.id,
+            symbol=asset.symbol,
+            name=asset.name,
+            isin=asset.isin,
+            currency=asset.currency,
+            asset_class=asset.asset_class,
+        )
+        for asset in session.scalars(query)
+    ]

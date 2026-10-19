@@ -1,14 +1,17 @@
 import { clsx } from 'clsx'
-import { FileUp, Search, X } from 'lucide-react'
+import { FileUp, Plus, Search, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 
-import { useAccounts, useTransactions, type TransactionFilters } from '../api/hooks'
-import type { TransactionType } from '../api/types'
+import { useAccounts, useDeleteTransaction, useTransactions, type TransactionFilters } from '../api/hooks'
+import type { TransactionRow, TransactionType } from '../api/types'
 import { PageHeader } from '../components/layout/PageHeader'
+import { TransactionFormModal } from '../components/transactions/TransactionFormModal'
 import { TransactionsTable } from '../components/transactions/TransactionsTable'
-import { Button, Card, EmptyState, Field, Input, Select, Spinner } from '../components/ui/primitives'
+import { Modal } from '../components/ui/Modal'
+import { Button, Card, EmptyState, Field, Input, Notice, Select, Spinner } from '../components/ui/primitives'
 import { useDebounced } from '../lib/debounce'
+import { formatDate, TRANSACTION_TYPE_LABELS } from '../lib/format'
 import { usePreferences } from '../lib/preferences-context'
 import { QueryError } from './QueryError'
 
@@ -33,6 +36,9 @@ export function TransactionsPage() {
   const accounts = useAccounts(baseCurrency)
   const [params, setParams] = useSearchParams()
   const [searchText, setSearchText] = useState(params.get('q') ?? '')
+  // The form: a new transaction (true) or one being corrected.
+  const [form, setForm] = useState<TransactionRow | boolean>(false)
+  const [deleting, setDeleting] = useState<TransactionRow | null>(null)
   const debouncedSearch = useDebounced(searchText.trim(), 300)
 
   const accountId = numberParam(params.get('account'))
@@ -101,7 +107,19 @@ export function TransactionsPage() {
         title="Transactions"
         showCurrency={false}
         subtitle={data ? `${data.total} transaction${data.total === 1 ? '' : 's'}${filtered ? ' match your filters' : ''}` : ' '}
+        actions={
+          <Button size="sm" variant="primary" onClick={() => setForm(true)}>
+            <Plus className="size-3.5" aria-hidden /> Add transaction
+          </Button>
+        }
       />
+      <TransactionFormModal
+        open={form !== false}
+        onClose={() => setForm(false)}
+        transaction={typeof form === 'object' ? form : undefined}
+        accountId={accountId}
+      />
+      <DeleteTransactionModal transaction={deleting} onClose={() => setDeleting(null)} />
       <div className="flex flex-col gap-4 sm:gap-5">
         <Card className="flex flex-col gap-4 px-5 py-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)_minmax(0,2fr)]">
@@ -191,7 +209,11 @@ export function TransactionsPage() {
                 <Link to="/import" className="font-medium text-accent hover:underline">
                   Import a statement
                 </Link>{' '}
-                to get started.
+                or{' '}
+                <button type="button" className="font-medium text-accent hover:underline" onClick={() => setForm(true)}>
+                  add one by hand
+                </button>
+                .
               </EmptyState>
             )
           ) : (
@@ -203,11 +225,52 @@ export function TransactionsPage() {
                 onPageChange={(next) => update({ page: next > 0 ? String(next + 1) : null }, true)}
                 loadingMore={transactions.isPlaceholderData}
                 showAccount={!accountId}
+                onEdit={setForm}
+                onDelete={setDeleting}
               />
             </div>
           )}
         </Card>
       </div>
     </>
+  )
+}
+
+function DeleteTransactionModal({ transaction, onClose }: { transaction: TransactionRow | null; onClose: () => void }) {
+  const remove = useDeleteTransaction()
+  const close = () => {
+    remove.reset()
+    onClose()
+  }
+  if (!transaction) return null
+  const what = [TRANSACTION_TYPE_LABELS[transaction.type], transaction.symbol, formatDate(transaction.date)].filter(Boolean).join(' · ')
+  return (
+    <Modal
+      open
+      onClose={close}
+      title="Delete transaction?"
+      description={what}
+      footer={
+        <>
+          <Button variant="ghost" onClick={close}>
+            Cancel
+          </Button>
+          <Button variant="danger" loading={remove.isPending} onClick={() => remove.mutate(transaction.id, { onSuccess: close })}>
+            Delete
+          </Button>
+        </>
+      }
+    >
+      <p className="text-sm text-ink-2">
+        {transaction.manual
+          ? 'It was entered by hand, so it’s simply gone.'
+          : 'It stays deleted: importing the same statement again or the next sync won’t bring it back.'}
+      </p>
+      {remove.error ? (
+        <div className="mt-4">
+          <Notice tone="negative">{remove.error.message}</Notice>
+        </div>
+      ) : null}
+    </Modal>
   )
 }

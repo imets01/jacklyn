@@ -1,5 +1,5 @@
 import { clsx } from 'clsx'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Pencil, Trash2 } from 'lucide-react'
 import { Link } from 'react-router'
 
 import type { TransactionPage, TransactionRow } from '../../api/types'
@@ -14,6 +14,9 @@ function typeTone(type: TransactionRow['type']): BadgeTone {
   return 'neutral'
 }
 
+const rowAction =
+  'grid size-8 place-items-center rounded-full text-ink-3 transition-opacity hover:bg-surface-2 hover:text-ink focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100'
+
 /** One page of ledger rows plus pager. `showAccount` adds the account column for cross-account lists. */
 export function TransactionsTable({
   data,
@@ -22,6 +25,8 @@ export function TransactionsTable({
   onPageChange,
   loadingMore = false,
   showAccount = false,
+  onEdit,
+  onDelete,
 }: {
   data: TransactionPage
   page: number
@@ -29,12 +34,15 @@ export function TransactionsTable({
   onPageChange: (page: number) => void
   loadingMore?: boolean
   showAccount?: boolean
+  onEdit?: (transaction: TransactionRow) => void
+  onDelete?: (transaction: TransactionRow) => void
 }) {
+  const actions = Boolean(onEdit || onDelete)
   const pages = Math.ceil(data.total / pageSize)
   return (
     <>
       <div className={clsx('overflow-x-auto transition-opacity', loadingMore && 'opacity-60')}>
-        <table className={clsx('w-full text-sm', showAccount ? 'min-w-[880px]' : 'min-w-[760px]')}>
+        <table className={clsx('w-full text-sm', showAccount ? 'min-w-[940px]' : 'min-w-[820px]')}>
           <thead className="text-left text-xs text-ink-3">
             <tr>
               <th className="px-6 py-3 font-medium">Date</th>
@@ -43,15 +51,23 @@ export function TransactionsTable({
               {showAccount ? <th className="px-3 py-3 font-medium">Account</th> : null}
               <th className="px-3 py-3 text-right font-medium">Quantity</th>
               <th className="px-3 py-3 text-right font-medium">Price</th>
-              <th className="px-6 py-3 text-right font-medium">Amount</th>
+              <th className={clsx('py-3 text-right font-medium', actions ? 'pl-3 pr-2' : 'px-6')}>Amount</th>
+              {actions ? <th className="w-20 pr-4"><span className="sr-only">Actions</span></th> : null}
             </tr>
           </thead>
           <tbody className="tabular">
             {data.items.map((tx) => (
-              <tr key={tx.id} className="border-t border-line">
+              <tr key={tx.id} className="group border-t border-line">
                 <td className="whitespace-nowrap px-6 py-3 text-ink-2">{formatDate(tx.date)}</td>
                 <td className="px-3 py-3">
-                  <Badge tone={typeTone(tx.type)}>{TRANSACTION_TYPE_LABELS[tx.type]}</Badge>
+                  <span className="flex flex-wrap items-center gap-1">
+                    <Badge tone={typeTone(tx.type)}>{TRANSACTION_TYPE_LABELS[tx.type]}</Badge>
+                    {tx.manual ? (
+                      <Badge tone="neutral" title="Entered by hand">
+                        Manual
+                      </Badge>
+                    ) : null}
+                  </span>
                 </td>
                 <td className="max-w-[320px] px-3 py-3">
                   <p className="truncate text-ink">{tx.symbol ?? tx.description ?? '—'}</p>
@@ -68,8 +84,8 @@ export function TransactionsTable({
                 ) : null}
                 <td className="px-3 py-3 text-right text-ink-2"><Sensitive>{formatQuantity(tx.quantity)}</Sensitive></td>
                 <td className="px-3 py-3 text-right text-ink-2">{tx.unit_price ? formatPrice(tx.unit_price, tx.currency) : '—'}</td>
-                <td className="px-6 py-3 text-right">
-                  <p className="text-ink"><Sensitive>{tx.amount ? formatMoney(tx.amount, tx.currency) : '—'}</Sensitive></p>
+                <td className={clsx('py-3 text-right', actions ? 'pl-3 pr-2' : 'px-6')}>
+                  <p className="whitespace-nowrap text-ink"><Sensitive>{tx.amount ? formatMoney(tx.amount, tx.currency) : '—'}</Sensitive></p>
                   {Number(tx.fee) || Number(tx.tax) ? (
                     <p className="text-xs text-ink-3">
                       <Sensitive>{Number(tx.fee) ? `fee ${formatMoney(tx.fee, tx.currency)}` : ''}</Sensitive>
@@ -78,6 +94,22 @@ export function TransactionsTable({
                     </p>
                   ) : null}
                 </td>
+                {actions ? (
+                  <td className="pr-4">
+                    <span className="flex justify-end">
+                      {onEdit ? (
+                        <button type="button" className={rowAction} onClick={() => onEdit(tx)} aria-label={`Edit ${TRANSACTION_TYPE_LABELS[tx.type]} on ${formatDate(tx.date)}`}>
+                          <Pencil className="size-3.5" aria-hidden />
+                        </button>
+                      ) : null}
+                      {onDelete ? (
+                        <button type="button" className={clsx(rowAction, 'hover:text-negative')} onClick={() => onDelete(tx)} aria-label={`Delete ${TRANSACTION_TYPE_LABELS[tx.type]} on ${formatDate(tx.date)}`}>
+                          <Trash2 className="size-3.5" aria-hidden />
+                        </button>
+                      ) : null}
+                    </span>
+                  </td>
+                ) : null}
               </tr>
             ))}
           </tbody>

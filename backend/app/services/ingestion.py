@@ -1,6 +1,7 @@
 """Tier 3 entry point: every source (file upload, API sync, seeder, future webhooks) commits through here."""
 
 import hashlib
+import itertools
 from collections import Counter
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
@@ -10,7 +11,7 @@ from sqlalchemy import select, tuple_
 from sqlalchemy.orm import Session
 
 from app.enums import ImportSource, ImportStatus
-from app.models import Account, ImportLog, Transaction
+from app.models import Account, DeletedTransaction, ImportLog, Transaction
 from app.schemas.standard import StandardTransaction
 from app.services.assets import AssetResolver
 
@@ -54,7 +55,24 @@ def dedup_hashes(transactions: Sequence[StandardTransaction]) -> list[str]:
         key = content_key(transaction)
         occurrence = seen[key]
         seen[key] += 1
-        hashes.append(hashlib.sha256(f"{key}#{occurrence}".encode()).hexdigest())
+        hashes.append(_digest(key, occurrence))
+    return hashes
+
+
+def _digest(key: str, occurrence: int) -> str:
+    return hashlib.sha256(f"{key}#{occurrence}".encode()).hexdigest()
+
+
+def unused_hashes(session: Session, account_id: int, transactions: Sequence[StandardTransaction]) -> list[str]:
+    """Like `dedup_hashes`, but each skips occurrences the account already has: for rows kept on purpose although
+    an identical one is recorded (a second equal trade entered by hand)."""
+    taken = set(session.scalars(select(Transaction.dedup_hash).where(Transaction.account_id == account_id)))
+    hashes: list[str] = []
+    for transaction in transactions:
+        key = content_key(transaction)
+        digest = next(d for n in itertools.count() if (d := _digest(key, n)) not in taken)
+        taken.add(digest)
+        hashes.append(digest)
     return hashes
 
 
@@ -70,36 +88,47 @@ def _chunks[T](items: Sequence[T]) -> Iterable[Sequence[T]]:
 
 
 def _existing(
-    session: Session, account_id: int, transactions: Sequence[StandardTransaction], hashes: list[str]
+    session: Session,
+    account_id: int,
+    transactions: Sequence[StandardTransaction],
+    hashes: list[str],
+    include_deleted: bool,
 ) -> tuple[set[str], set[tuple[str, str, str]]]:
     known_hashes: set[str] = set()
-    for chunk in _chunks(hashes):
-        known_hashes.update(
-            session.scalars(
-                select(Transaction.dedup_hash).where(
-                    Transaction.account_id == account_id, Transaction.dedup_hash.in_(chunk)
+    known_external: set[tuple[str, str, str]] = set()
+    external_keys = [key for t in transactions if (key := _external_key(t))]
+    tables: list[type[Transaction] | type[DeletedTransaction]] = [Transaction]
+    if include_deleted:
+        tables.append(DeletedTransaction)
+    for table in tables:
+        for chunk in _chunks(hashes):
+            known_hashes.update(
+                session.scalars(
+                    select(table.dedup_hash).where(table.account_id == account_id, table.dedup_hash.in_(chunk))
                 )
             )
-        )
-    external_keys = [key for t in transactions if (key := _external_key(t))]
-    known_external: set[tuple[str, str, str]] = set()
-    for key_chunk in _chunks(external_keys):
-        rows = session.execute(
-            select(Transaction.external_id, Transaction.type, Transaction.currency).where(
-                Transaction.account_id == account_id,
-                tuple_(Transaction.external_id, Transaction.type, Transaction.currency).in_(
-                    [(ext, tx_type, currency) for ext, tx_type, currency in key_chunk]
-                ),
+        for key_chunk in _chunks(external_keys):
+            rows = session.execute(
+                select(table.external_id, table.type, table.currency).where(
+                    table.account_id == account_id,
+                    tuple_(table.external_id, table.type, table.currency).in_(
+                        [(ext, tx_type, currency) for ext, tx_type, currency in key_chunk]
+                    ),
+                )
             )
-        )
-        known_external.update((ext or "", str(tx_type), currency) for ext, tx_type, currency in rows)
+            known_external.update((ext or "", str(tx_type), currency) for ext, tx_type, currency in rows)
     return known_hashes, known_external
 
 
-def find_duplicates(session: Session, account_id: int, transactions: Sequence[StandardTransaction]) -> list[bool]:
-    """Per transaction: is it already recorded on this account (or repeated earlier in the batch)?"""
+def find_duplicates(
+    session: Session, account_id: int, transactions: Sequence[StandardTransaction], *, include_deleted: bool = True
+) -> list[bool]:
+    """Per transaction: is it already recorded on this account (or repeated earlier in the batch)?
+
+    Rows the user deleted count as recorded too, so a re-import doesn't bring them back.
+    """
     hashes = dedup_hashes(transactions)
-    known_hashes, known_external = _existing(session, account_id, transactions, hashes)
+    known_hashes, known_external = _existing(session, account_id, transactions, hashes, include_deleted)
     flags: list[bool] = []
     batch_external: set[tuple[str, str, str]] = set()
     for transaction, digest in zip(transactions, hashes, strict=True):
@@ -137,14 +166,23 @@ def ingest_transactions(
     filename: str | None = None,
     file_sha256: str | None = None,
     message: str | None = None,
+    keep_duplicates: bool = False,
 ) -> IngestOutcome:
-    """Idempotently persist normalized transactions for one account and record an ImportLog."""
+    """Idempotently persist normalized transactions for one account and record an ImportLog.
+
+    `keep_duplicates` stores every row, even one identical to a recorded row (manual entry, after the user
+    confirmed it): each gets a fingerprint the account doesn't have yet.
+    """
     account = session.get(Account, account_id)
     if account is None or account.user_id != user_id:
         raise AccountNotFoundError(f"Account {account_id} not found")
 
-    duplicates = find_duplicates(session, account_id, transactions)
-    hashes = dedup_hashes(transactions)
+    if keep_duplicates:
+        duplicates = [False] * len(transactions)
+        hashes = unused_hashes(session, account_id, transactions)
+    else:
+        duplicates = find_duplicates(session, account_id, transactions)
+        hashes = dedup_hashes(transactions)
     log = ImportLog(
         user_id=user_id,
         account_id=account_id,

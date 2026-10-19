@@ -6,7 +6,7 @@ from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.enums import AccountType, ImportSource, ImportStatus, TransactionType
+from app.enums import AccountType, AssetClass, ImportSource, ImportStatus, TransactionType
 from app.parsers.base import AccountHint, RowError
 from app.parsers.generic import ColumnMappingConfig, TablePreview
 from app.schemas.standard import StandardTransaction, currency_code
@@ -103,11 +103,39 @@ class TransactionOut(BaseModel):
     description: str | None
     external_id: str | None
     import_log_id: int | None
+    manual: bool = False  # entered by hand, not imported or synced
 
 
 class TransactionPage(BaseModel):
     total: int
     items: list[TransactionOut]
+
+
+class ManualTransactionsIn(BaseModel):
+    """One transaction entered by hand, or both legs of a currency exchange."""
+
+    account_id: int
+    transactions: list[StandardTransaction] = Field(min_length=1, max_length=2)
+    # Store it although an identical transaction is already recorded (the user confirmed a second one).
+    allow_duplicate: bool = False
+
+
+class ManualTransactionsResult(BaseModel):
+    ids: list[int]
+
+
+class TransactionEdit(BaseModel):
+    account_id: int
+    transaction: StandardTransaction
+
+
+class AssetOption(BaseModel):
+    id: int
+    symbol: str
+    name: str | None
+    isin: str | None
+    currency: str
+    asset_class: AssetClass
 
 
 class Detection(BaseModel):

@@ -42,3 +42,22 @@ class Transaction(Base):
     external_id: Mapped[str | None] = mapped_column(String(128))
     dedup_hash: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[dt.datetime] = mapped_column(default=utcnow)
+
+
+class DeletedTransaction(Base):
+    """A broker row the user deleted. Imports and syncs treat it as already recorded, so it stays deleted."""
+
+    __tablename__ = "deleted_transactions"
+    __table_args__ = (
+        UniqueConstraint("account_id", "dedup_hash"),
+        Index("ix_deleted_transactions_account_external_id", "account_id", "external_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"))
+    type: Mapped[TransactionType] = mapped_column(enum_column(TransactionType))
+    currency: Mapped[str] = mapped_column(String(3))
+    external_id: Mapped[str | None] = mapped_column(String(128))
+    dedup_hash: Mapped[str] = mapped_column(String(64))
+    deleted_at: Mapped[dt.datetime] = mapped_column(default=utcnow)

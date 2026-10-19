@@ -5,6 +5,7 @@ import { api } from './client'
 import type {
   AccountCreate,
   AccountSummary,
+  AssetOption,
   ChartRange,
   ChartResponse,
   ColumnMappingConfig,
@@ -20,9 +21,11 @@ import type {
   ImportCommitResult,
   ImportLog,
   ImportPreview,
+  ManualTransactionsIn,
   MarketRefreshResult,
   PortfolioSummary,
   SavedMapping,
+  TransactionInput,
   TransactionPage,
   TransactionType,
   User,
@@ -44,7 +47,7 @@ export const queryKeys = {
 }
 
 /** Everything that depends on ledger contents; invalidated after an import or account change. */
-const LEDGER_KEYS = ['summary', 'history', 'holdings', 'holding', 'accounts', 'account', 'transactions', 'import-logs', 'health']
+const LEDGER_KEYS = ['asset-options', 'summary', 'history', 'holdings', 'holding', 'accounts', 'account', 'transactions', 'import-logs', 'health']
 
 export function useMe() {
   return useQuery({ queryKey: queryKeys.me, queryFn: () => api.get<User>('/api/me') })
@@ -158,6 +161,41 @@ export function useTransactions(filters: TransactionFilters, page: number, pageS
         offset: page * pageSize,
       }),
     placeholderData: keepPreviousData,
+  })
+}
+
+/** Assets the user already trades, matching the search, for the manual entry form. */
+export function useAssetOptions(search: string) {
+  return useQuery({
+    queryKey: ['asset-options', search] as const,
+    queryFn: () => api.get<AssetOption[]>('/api/transactions/assets', { q: search || null }),
+    placeholderData: keepPreviousData,
+    staleTime: 60_000,
+  })
+}
+
+export function useAddTransactions() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (payload: ManualTransactionsIn) => api.post<{ ids: number[] }>('/api/transactions', payload),
+    onSuccess: () => invalidateLedger(client),
+  })
+}
+
+export function useEditTransaction() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, accountId, transaction }: { id: number; accountId: number; transaction: TransactionInput }) =>
+      api.put<void>(`/api/transactions/${id}`, { account_id: accountId, transaction }),
+    onSuccess: () => invalidateLedger(client),
+  })
+}
+
+export function useDeleteTransaction() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => api.delete<void>(`/api/transactions/${id}`),
+    onSuccess: () => invalidateLedger(client),
   })
 }
 

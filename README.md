@@ -125,6 +125,7 @@ Jacklyn is built to be shared with a few trusted people without exposing your se
 | GET | `/api/assets/{asset_id}/chart?range=1D…MAX` · `/api/assets/{asset_id}/logo` · `/api/logos/{key}` | Price chart (Yahoo, cached in memory), cached asset logo, country flag or currency badge |
 | GET/POST | `/api/accounts` · GET/PATCH/DELETE `/api/accounts/{id}` | Accounts with valuation; TBSZ rules enforced |
 | GET | `/api/transactions?account_id=&type=&asset_id=&q=&date_from=&date_to=` | Ledger across accounts with filters (search matches symbol, name, ISIN, note) |
+| POST · PUT/DELETE | `/api/transactions` · `/api/transactions/{id}` · GET `/api/transactions/assets?q=` | Enter by hand (409 on an identical row unless `allow_duplicate`), correct, delete; edits keep the row's fingerprint and deleted broker rows stay deleted on re-import |
 | PUT/GET | `/api/health/profile` · `/api/health/report?base=&amount=&include_cash=` | Investor profile; Portfolio Health report (breakdowns, rule findings with citations, score, rebalancing plan) |
 | POST | `/api/import/preview` (multipart `files`, one or many) | Detect → parse → normalized rows with duplicate flags, grouped per account when needed, or a table preview for the column mapper |
 | POST | `/api/import/commit` | Idempotently store selected `StandardTransaction`s |

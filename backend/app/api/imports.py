@@ -387,6 +387,9 @@ def commit_import(
 @router.get("/logs", response_model=list[ImportLogOut])
 def list_import_logs(session: DbSession, user: CurrentUser, limit: int = 50) -> list[ImportLogOut]:
     logs = session.scalars(
-        select(ImportLog).where(ImportLog.user_id == user.id).order_by(ImportLog.id.desc()).limit(min(limit, 200))
+        select(ImportLog)
+        .where(ImportLog.user_id == user.id, ImportLog.source != ImportSource.MANUAL)  # each hand entry has one
+        .order_by(ImportLog.id.desc())
+        .limit(min(limit, 200))
     )
     return [ImportLogOut.model_validate(log) for log in logs]

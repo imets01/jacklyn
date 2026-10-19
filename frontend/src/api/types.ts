@@ -289,11 +289,33 @@ export interface TransactionRow {
   description: string | null
   external_id: string | null
   import_log_id: number | null
+  /** Entered by hand, not imported or synced. */
+  manual: boolean
 }
 
 export interface TransactionPage {
   total: number
   items: TransactionRow[]
+}
+
+/** A transaction as entered in the form: the fields of StandardTransaction it uses. */
+export type TransactionInput = Pick<StandardTransaction, 'date' | 'type' | 'currency'> &
+  Partial<Pick<StandardTransaction, 'symbol' | 'isin' | 'quantity' | 'unit_price' | 'amount' | 'fee' | 'tax' | 'external_id' | 'description'>>
+
+export interface ManualTransactionsIn {
+  account_id: number
+  /** One transaction, or both legs of a currency exchange. */
+  transactions: TransactionInput[]
+  allow_duplicate?: boolean
+}
+
+export interface AssetOption {
+  id: number
+  symbol: string
+  name: string | null
+  isin: string | null
+  currency: string
+  asset_class: AssetClass
 }
 
 export interface AccountCreate {
