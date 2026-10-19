@@ -56,13 +56,12 @@ export function AccountsPage() {
   const [params, setParams] = useSearchParams()
   const modalOpen = params.get('new') === '1'
   const list = accounts.data ?? []
-  const tbsz = list.filter((account) => account.account_type === 'tbsz').sort((a, b) => (a.tbsz_year ?? 0) - (b.tbsz_year ?? 0))
 
   return (
     <>
       <PageHeader
         title="Accounts"
-        subtitle="Every broker, sub-account and TBSZ vintage — drill into any of them."
+        subtitle="Every account, grouped by broker — drill into any of them."
         actions={
           <Button variant="primary" onClick={() => setParams({ new: '1' })}>
             <Plus className="size-4" aria-hidden /> New account
@@ -83,19 +82,6 @@ export function AccountsPage() {
         </Card>
       ) : (
         <div className={clsx('flex flex-col gap-8 transition-opacity', accounts.isPlaceholderData && 'opacity-60')}>
-          {tbsz.length > 0 ? (
-            <section>
-              <h2 className="mb-1 text-lg font-semibold text-ink">TBSZ vintages</h2>
-              <p className="mb-4 text-sm text-ink-3">
-                Each vintage locks for five years after its collection year: 10% tax after three, tax-free after five.
-              </p>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {tbsz.map((account) => (
-                  <AccountCard key={account.id} account={account} currency={baseCurrency} />
-                ))}
-              </div>
-            </section>
-          ) : null}
           {groupByBroker(list).map(([broker, group]) => (
             <section key={broker}>
               <h2 className="mb-4 text-lg font-semibold text-ink">{broker}</h2>
