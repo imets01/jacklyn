@@ -1,5 +1,5 @@
 import { clsx } from 'clsx'
-import { Eye, EyeOff, FileUp, HeartPulse, LayoutDashboard, LogOut, Monitor, Moon, ReceiptText, Settings, Sun, Wallet } from 'lucide-react'
+import { Coins, Eye, EyeOff, FileUp, HeartPulse, LayoutDashboard, LogOut, Monitor, Moon, ReceiptText, Settings, Sun, Wallet } from 'lucide-react'
 import { useEffect } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
 
@@ -11,7 +11,9 @@ import { Logo, LogoMark } from '../ui/Logo'
 const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/accounts', label: 'Accounts', icon: Wallet, end: false },
-  { to: '/transactions', label: 'Transactions', icon: ReceiptText, end: false },
+  // The phone tab bar has a seventh of the width per item: too narrow for "Transactions".
+  { to: '/transactions', label: 'Transactions', short: 'Activity', icon: ReceiptText, end: false },
+  { to: '/income', label: 'Income', icon: Coins, end: false },
   { to: '/health', label: 'Health', icon: HeartPulse, end: false },
   { to: '/import', label: 'Import', icon: FileUp, end: false },
 ] as const
@@ -166,24 +168,28 @@ export function AppShell() {
       {/* Mobile tab bar */}
       <nav
         aria-label="Main"
-        className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-6 border-t border-line bg-surface/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 backdrop-blur lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-7 border-t border-line bg-surface/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 backdrop-blur lg:hidden"
       >
-        {[...NAV, { to: '/settings', label: 'Settings', icon: Settings, end: false }].map(({ to, label, icon: Icon, end }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={end}
-            className={({ isActive }) =>
-              clsx(
-                'flex min-w-0 flex-col items-center gap-1 rounded-xl py-1.5 text-[10px] font-medium',
-                isActive ? 'text-accent' : 'text-ink-3',
-              )
-            }
-          >
-            <Icon className="size-5" aria-hidden />
-            {label}
-          </NavLink>
-        ))}
+        {[...NAV, { to: '/settings', label: 'Settings', icon: Settings, end: false }].map((item) => {
+          const { to, label, icon: Icon, end } = item
+          return (
+            <NavLink
+              key={to}
+              to={to}
+              end={end}
+              aria-label={label}
+              className={({ isActive }) =>
+                clsx(
+                  'flex min-w-0 flex-col items-center gap-1 rounded-xl py-1.5 text-[10px] font-medium',
+                  isActive ? 'text-accent' : 'text-ink-3',
+                )
+              }
+            >
+              <Icon className="size-5" aria-hidden />
+              <span className="max-w-full truncate">{'short' in item ? item.short : label}</span>
+            </NavLink>
+          )
+        })}
       </nav>
     </div>
   )

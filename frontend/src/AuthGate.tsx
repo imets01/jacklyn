@@ -19,6 +19,7 @@ import { SetupPage } from './pages/auth/SetupPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { HealthPage } from './pages/HealthPage'
 import { HoldingDetailPage } from './pages/HoldingDetailPage'
+import { IncomePage } from './pages/IncomePage'
 import { ImportPage } from './pages/ImportPage'
 import { NotFound } from './pages/NotFound'
 import { SettingsPage } from './pages/settings/SettingsPage'
@@ -101,6 +102,7 @@ export function AuthGate() {
           <Route path="accounts/:accountId" element={<AccountDetailPage />} />
           <Route path="holdings/:assetId" element={<HoldingDetailPage />} />
           <Route path="transactions" element={<TransactionsPage />} />
+          <Route path="income" element={<IncomePage />} />
           <Route path="health" element={<HealthPage />} />
           <Route path="import" element={<ImportPage />} />
           <Route path="settings" element={<SettingsPage />} />

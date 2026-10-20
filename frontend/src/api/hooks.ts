@@ -21,6 +21,7 @@ import type {
   ImportCommitResult,
   ImportLog,
   ImportPreview,
+  IncomeResponse,
   ManualTransactionsIn,
   MarketRefreshResult,
   PerformanceResponse,
@@ -49,7 +50,7 @@ export const queryKeys = {
 }
 
 /** Everything that depends on ledger contents; invalidated after an import or account change. */
-const LEDGER_KEYS = ['asset-options', 'performance', 'summary', 'history', 'holdings', 'holding', 'accounts', 'account', 'transactions', 'import-logs', 'health']
+const LEDGER_KEYS = ['asset-options', 'income', 'performance', 'summary', 'history', 'holdings', 'holding', 'accounts', 'account', 'transactions', 'import-logs', 'health']
 
 export function useMe() {
   return useQuery({ queryKey: queryKeys.me, queryFn: () => api.get<User>('/api/me') })
@@ -93,6 +94,14 @@ export function useHistory(base: string, range: HistoryRange, accountId?: number
     queryKey: queryKeys.history(base, range, accountId),
     queryFn: () =>
       api.get<HistoryResponse>('/api/portfolio/history', { base, range, account_id: accountId ?? null }),
+    placeholderData: keepPreviousData,
+  })
+}
+
+export function useIncome(base: string) {
+  return useQuery({
+    queryKey: ['income', base] as const,
+    queryFn: () => api.get<IncomeResponse>('/api/portfolio/income', { base }),
     placeholderData: keepPreviousData,
   })
 }

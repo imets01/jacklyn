@@ -128,6 +128,7 @@ Jacklyn is built to be shared with a few trusted people without exposing your se
 | GET | `/api/portfolio/history?range=1Y&base=CHF[&account_id=]` | Value vs. net invested series |
 | GET | `/api/portfolio/holdings?base=CHF[&account_id=]` | Positions and cash balances |
 | GET | `/api/portfolio/performance?period=ALL&base=CHF` | Money-weighted (XIRR) and time-weighted returns, overall and per account; per year from one year of data |
+| GET | `/api/portfolio/income?base=CHF` | Dividends and interest after withholding: last 24 months, per holding (yield, cadence, next expected), totals and upcoming payments |
 | GET | `/api/portfolio/holdings/{asset_id}?base=CHF` | One asset across accounts: position, fund/company info, activity |
 | GET | `/api/assets/{asset_id}/chart?range=1D…MAX` · `/api/assets/{asset_id}/logo` · `/api/logos/{key}` | Price chart (Yahoo, cached in memory), cached asset logo, country flag or currency badge |
 | GET/POST | `/api/accounts` · GET/PATCH/DELETE `/api/accounts/{id}` | Accounts with valuation; TBSZ rules enforced |

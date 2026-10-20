@@ -7,10 +7,12 @@ from app.schemas.portfolio import (
     HistoryRange,
     HistoryResponse,
     HoldingsResponse,
+    IncomeResponse,
     PerformanceResponse,
     PortfolioSummary,
     ReturnPeriod,
 )
+from app.services.income import income_report
 from app.services.portfolio import PortfolioEngine
 
 router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
@@ -54,3 +56,9 @@ def portfolio_performance(
     """Money- and time-weighted returns, overall and per account."""
     engine = PortfolioEngine(session, user_id=user.id, base_currency=base)
     return engine.performance(period)
+
+
+@router.get("/income", response_model=IncomeResponse)
+def portfolio_income(session: DbSession, user: CurrentUser, base: BaseCurrency) -> IncomeResponse:
+    """Dividends and interest: by month, by holding, and what is likely to come."""
+    return income_report(PortfolioEngine(session, user_id=user.id, base_currency=base))

@@ -725,3 +725,60 @@ export interface PerformanceResponse {
   total: PeriodReturn | null
   accounts: AccountReturn[]
 }
+
+/** Dividends and interest, net of withholding, in the base currency. */
+export interface IncomeTotals {
+  trailing_12m: Money
+  previous_12m: Money
+  this_year: Money
+  all_time: Money
+  withheld_12m: Money
+  /** Last 12 months' dividend per share x shares held now. */
+  expected_12m: Money
+  portfolio_yield: Ratio | null
+}
+
+export interface IncomeMonth {
+  month: ISODate
+  dividends: Money
+  interest: Money
+  withheld: Money
+}
+
+export interface IncomeHolding {
+  asset_id: number
+  symbol: string
+  name: string | null
+  logo_url: string | null
+  held: boolean
+  trailing_12m: Money
+  all_time: Money
+  payments_12m: number
+  cadence: string | null
+  last_paid: ISODate | null
+  next_expected: ISODate | null
+  next_estimate: Money | null
+  expected_12m: Money
+  value: Money | null
+  yield_pct: Ratio | null
+  yield_on_cost: Ratio | null
+}
+
+export interface UpcomingPayment {
+  asset_id: number
+  symbol: string
+  name: string | null
+  logo_url: string | null
+  expected_on: ISODate
+  estimate: Money
+}
+
+export interface IncomeResponse {
+  base_currency: string
+  as_of: ISODate
+  totals: IncomeTotals
+  /** The last 24 months, oldest first. */
+  months: IncomeMonth[]
+  holdings: IncomeHolding[]
+  upcoming: UpcomingPayment[]
+}

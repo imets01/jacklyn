@@ -274,3 +274,59 @@ class PerformanceResponse(BaseModel):
     period: ReturnPeriod
     total: PeriodReturn | None  # None when nothing was invested in the period
     accounts: list[AccountReturn]
+
+
+class IncomeTotals(BaseModel):
+    """Net of withholding tax, in the base currency."""
+
+    trailing_12m: Decimal
+    previous_12m: Decimal  # the 12 months before, for comparison
+    this_year: Decimal
+    all_time: Decimal
+    withheld_12m: Decimal
+    expected_12m: Decimal  # last 12 months' dividend per share x shares held now
+    portfolio_yield: Decimal | None  # trailing 12 months / current holdings value
+
+
+class IncomeMonth(BaseModel):
+    month: dt.date  # first day of the month
+    dividends: Decimal  # net of withholding
+    interest: Decimal
+    withheld: Decimal
+
+
+class IncomeHolding(BaseModel):
+    asset_id: int
+    symbol: str
+    name: str | None
+    logo_url: str | None
+    held: bool
+    trailing_12m: Decimal
+    all_time: Decimal
+    payments_12m: int
+    cadence: str | None  # monthly, quarterly, twice a year, yearly, irregular
+    last_paid: dt.date | None
+    next_expected: dt.date | None
+    next_estimate: Decimal | None
+    expected_12m: Decimal
+    value: Decimal | None
+    yield_pct: Decimal | None  # trailing 12 months / current value
+    yield_on_cost: Decimal | None
+
+
+class UpcomingPayment(BaseModel):
+    asset_id: int
+    symbol: str
+    name: str | None
+    logo_url: str | None
+    expected_on: dt.date
+    estimate: Decimal
+
+
+class IncomeResponse(BaseModel):
+    base_currency: str
+    as_of: dt.date
+    totals: IncomeTotals
+    months: list[IncomeMonth]  # the last 24, oldest first
+    holdings: list[IncomeHolding]
+    upcoming: list[UpcomingPayment]
