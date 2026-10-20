@@ -1,14 +1,16 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { CircleAlert } from 'lucide-react'
-import { useEffect } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Route, Routes } from 'react-router'
 
 import { authKeys, useSession } from './api/auth'
 import { UNAUTHORIZED_EVENT } from './api/client'
 import { AppShell } from './components/layout/AppShell'
+import { GrowingSplash } from './components/splash/GrowingSplash'
 import { LogoMark } from './components/ui/Logo'
 import { Button, Spinner } from './components/ui/primitives'
 import { PreferencesProvider } from './lib/preferences'
+import { greetedThisSession } from './lib/welcome'
 import { AccountDetailPage } from './pages/AccountDetailPage'
 import { AccountsPage } from './pages/AccountsPage'
 import { InvitePage, ResetPage } from './pages/auth/LinkPages'
@@ -44,6 +46,18 @@ function Splash({ error, onRetry }: { error?: string; onRetry?: () => void }) {
 export function AuthGate() {
   const session = useSession()
   const client = useQueryClient()
+  const authenticated = session.data?.authenticated
+
+  // The welcome plays on the first visit in a browser session and right after signing in. Signed out, it waits
+  // for the sign-in instead of playing twice in a row.
+  const [welcome, setWelcome] = useState(() => !greetedThisSession())
+  const [wasAuthenticated, setWasAuthenticated] = useState(authenticated)
+  if (authenticated !== wasAuthenticated) {
+    setWasAuthenticated(authenticated)
+    if (wasAuthenticated === false && authenticated) setWelcome(true)
+  }
+  const welcomeDone = useCallback(() => setWelcome(false), [])
+  const playing = welcome && authenticated === true
 
   useEffect(() => {
     const onUnauthorized = () => {
@@ -54,7 +68,8 @@ export function AuthGate() {
     return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized)
   }, [client])
 
-  if (session.isLoading) return <Splash />
+  // A plain canvas while the welcome is about to start, instead of a flash of the loading screen.
+  if (session.isLoading) return welcome ? <div className="min-h-dvh bg-canvas" /> : <Splash />
   if (session.error || !session.data) {
     return <Splash error="Can't reach the Jacklyn server." onRetry={() => void session.refetch()} />
   }
@@ -76,7 +91,7 @@ export function AuthGate() {
     )
   }
 
-  return (
+  return withWelcome(
     <PreferencesProvider>
       <Routes>
         {linkRoutes}
@@ -92,6 +107,15 @@ export function AuthGate() {
           <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>
-    </PreferencesProvider>
+    </PreferencesProvider>,
   )
+
+  function withWelcome(app: ReactNode) {
+    return (
+      <>
+        {app}
+        {playing ? <GrowingSplash onDone={welcomeDone} /> : null}
+      </>
+    )
+  }
 }
