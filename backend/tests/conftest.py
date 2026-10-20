@@ -10,6 +10,7 @@ _TMP = Path(tempfile.mkdtemp(prefix="jacklyn-tests-"))
 os.environ["JACKLYN_DATABASE_URL"] = f"sqlite:///{(_TMP / 'api.db').as_posix()}"
 os.environ["JACKLYN_DATA_DIR"] = str(_TMP / "data")
 os.environ["JACKLYN_LIVE_MARKET_DATA"] = "false"
+os.environ["JACKLYN_AUTO_BACKUPS"] = "false"
 os.environ["JACKLYN_SEED_DEMO_DATA"] = "true"
 os.environ["JACKLYN_SETUP_TOKEN"] = "test-setup-token"
 os.environ["JACKLYN_SECRET_KEY"] = "test-secret-key-not-for-production"

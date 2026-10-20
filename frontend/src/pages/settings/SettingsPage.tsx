@@ -3,6 +3,7 @@ import { LogOut } from 'lucide-react'
 import { useLogout, useSession } from '../../api/auth'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { Button, Spinner } from '../../components/ui/primitives'
+import { BackupsSection } from './BackupsSection'
 import { PeopleSection } from './PeopleSection'
 import { PasswordCard, ProfileCard, SessionsCard, TwoFactorCard } from './SecuritySection'
 
@@ -21,7 +22,7 @@ export function SettingsPage() {
     <>
       <PageHeader
         title="Settings"
-        subtitle="Your account, security and the people you share Jacklyn with."
+        subtitle="Your account, security, the people you share Jacklyn with, and backups."
         showMarket={false}
         showCurrency={false}
         actions={
@@ -39,6 +40,7 @@ export function SettingsPage() {
           <SessionsCard />
         </section>
         {me.is_admin ? <PeopleSection me={me} /> : null}
+        {me.is_admin ? <BackupsSection /> : null}
         <p className="text-xs text-ink-3">
           Market data from Yahoo Finance; fund country mixes and holdings from{' '}
           <a href="https://eulerpool.com" target="_blank" rel="noreferrer noopener" className="text-accent hover:underline">

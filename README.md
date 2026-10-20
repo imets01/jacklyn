@@ -52,6 +52,9 @@ Jacklyn is built to be shared with a few trusted people without exposing your se
   filesystems and no capabilities, and the UI is published on `127.0.0.1` only by default.
 - **Sharing with friends:** see [docs/cloudflare-tunnel.md](docs/cloudflare-tunnel.md). It covers a shareable
   link with no open ports, behind Cloudflare Access plus Jacklyn's own login.
+- **Backups**: Settings → Backups downloads a consistent copy of the SQLite database and restores one (a safety
+  copy of the current data is taken first). A daily copy is kept in `data/backups` (last 14). The backup holds no
+  `secret.key`: keep that key too if you might restore on a new server. PostgreSQL deployments use `pg_dump`.
 - **Locked out?** Run `docker compose exec backend python -m app.cli reset-link you@example.com`.
 
 ## How it works
@@ -130,6 +133,7 @@ Jacklyn is built to be shared with a few trusted people without exposing your se
 | GET/POST | `/api/accounts` · GET/PATCH/DELETE `/api/accounts/{id}` | Accounts with valuation; TBSZ rules enforced |
 | GET | `/api/transactions?account_id=&type=&asset_id=&q=&date_from=&date_to=` | Ledger across accounts with filters (search matches symbol, name, ISIN, note) |
 | POST · PUT/DELETE | `/api/transactions` · `/api/transactions/{id}` · GET `/api/transactions/assets?q=` | Enter by hand (409 on an identical row unless `allow_duplicate`), correct, delete; edits keep the row's fingerprint and deleted broker rows stay deleted on re-import |
+| GET/POST · GET/DELETE | `/api/admin/backups` · `/api/admin/backups/{name}` · POST `/api/admin/backups/restore` | Admin-only database snapshots (daily automatic, last 14 kept), download, and restore with a safety copy first |
 | PUT/GET | `/api/health/profile` · `/api/health/report?base=&amount=&include_cash=` | Investor profile; Portfolio Health report (breakdowns, rule findings with citations, score, rebalancing plan) |
 | POST | `/api/import/preview` (multipart `files`, one or many) | Detect → parse → normalized rows with duplicate flags, grouped per account when needed, or a table preview for the column mapper |
 | POST | `/api/import/commit` | Idempotently store selected `StandardTransaction`s |

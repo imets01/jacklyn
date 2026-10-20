@@ -5,6 +5,7 @@ from app.api import (
     admin,
     assets,
     auth,
+    backups,
     health,
     imports,
     mappings,
@@ -16,7 +17,8 @@ from app.api import (
 )
 
 api_router = APIRouter()
-for module in (auth, admin, me, health, assets, portfolio, accounts, imports, mappings, market, sync, transactions):
+ROUTERS = (auth, admin, backups, me, health, assets, portfolio, accounts, imports, mappings, market, sync, transactions)
+for module in ROUTERS:
     api_router.include_router(module.router)
 
 __all__ = ["api_router"]

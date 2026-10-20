@@ -220,3 +220,58 @@ export function useRevokeInvite() {
     onSuccess: () => client.invalidateQueries({ queryKey: authKeys.invites }),
   })
 }
+
+// ---------------------------------------------------------------- backups (admin)
+
+export interface Backup {
+  name: string
+  kind: 'manual' | 'daily' | 'before-restore'
+  size: number
+  created_at: ISODateTime
+}
+
+export interface BackupList {
+  /** SQLite; PostgreSQL deployments use pg_dump. */
+  supported: boolean
+  /** A daily snapshot is kept automatically. */
+  automatic: boolean
+  folder: string
+  backups: Backup[]
+}
+
+const backupsKey = ['admin', 'backups'] as const
+
+export function backupDownloadUrl(name: string): string {
+  return `/api/admin/backups/${encodeURIComponent(name)}`
+}
+
+export function useBackups(enabled: boolean) {
+  return useQuery({ queryKey: backupsKey, queryFn: () => api.get<BackupList>('/api/admin/backups'), enabled })
+}
+
+export function useCreateBackup() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: () => api.post<Backup>('/api/admin/backups'),
+    onSuccess: () => client.invalidateQueries({ queryKey: backupsKey }),
+  })
+}
+
+export function useDeleteBackup() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (name: string) => api.delete<void>(backupDownloadUrl(name)),
+    onSuccess: () => client.invalidateQueries({ queryKey: backupsKey }),
+  })
+}
+
+export function useRestoreBackup() {
+  return useMutation({
+    mutationFn: (file: File) => {
+      const form = new FormData()
+      form.append('file', file)
+      form.append('confirm', 'RESTORE')
+      return api.upload<{ safety_backup: Backup }>('/api/admin/backups/restore', form)
+    },
+  })
+}

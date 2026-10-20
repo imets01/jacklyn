@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     eulerpool_token: str | None = None
 
     max_upload_mb: int = 20
+    # A database snapshot a day in data_dir/backups (SQLite only), keeping the last 14; and the largest
+    # backup the restore page accepts.
+    auto_backups: bool = True
+    max_restore_mb: int = 2048
 
     # Where generated secrets (secret.key, setup-token.txt) and caches live. A Docker volume in production.
     data_dir: Path = BACKEND_DIR / "data"

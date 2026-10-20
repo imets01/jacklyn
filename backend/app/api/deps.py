@@ -8,6 +8,7 @@ from app.db import get_session
 from app.models import Account, User, UserSession
 from app.security.throttle import LoginThrottle
 from app.services.auth import SetupGuard, resolve_session
+from app.services.backups import BackupService
 from app.services.market_data import MarketDataService
 from app.services.sync import SyncService
 
@@ -84,6 +85,14 @@ def get_sync_service(request: Request) -> SyncService:
 
 
 SyncSvc = Annotated[SyncService, Depends(get_sync_service)]
+
+
+def get_backup_service(request: Request) -> BackupService:
+    service: BackupService = request.app.state.backups
+    return service
+
+
+Backups = Annotated[BackupService, Depends(get_backup_service)]
 
 
 def get_throttle(request: Request) -> LoginThrottle:

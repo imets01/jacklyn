@@ -10,11 +10,12 @@ from fastapi.responses import JSONResponse
 from app import __version__
 from app.api import api_router
 from app.config import get_settings
-from app.db import SessionLocal
+from app.db import SessionLocal, engine
 from app.db.migrate import upgrade_to_head
 from app.security.throttle import LoginThrottle
 from app.seed import seed
 from app.services.auth import SetupGuard, needs_setup, purge_expired_sessions
+from app.services.backups import BackupService
 from app.services.market_data import MarketDataService
 from app.services.sync import SyncService
 
@@ -51,8 +52,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.sync = SyncService(SessionLocal, on_imported=app.state.market.holdings_changed)
     if settings.live_market_data:  # offline mode (and tests) never reach out to IBKR on their own
         app.state.sync.start_scheduler()
+    app.state.backups = BackupService(engine, settings.data_dir)
+    if settings.auto_backups:
+        app.state.backups.start_scheduler()
     yield
     app.state.sync.stop()
+    app.state.backups.stop()
 
 
 def _same_origin(request: Request) -> bool:
