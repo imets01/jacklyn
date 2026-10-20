@@ -120,7 +120,7 @@ export function formatDate(value: string | null | undefined, style: 'short' | 'm
     style === 'short'
       ? date.getFullYear() === new Date().getFullYear()
         ? { day: 'numeric', month: 'short' }
-        : { day: 'numeric', month: 'short', year: '2-digit' }
+        : { day: 'numeric', month: 'short', year: 'numeric' }
       : style === 'long'
         ? { day: 'numeric', month: 'long', year: 'numeric' }
         : { day: 'numeric', month: 'short', year: 'numeric' }
