@@ -129,6 +129,9 @@ class MarketDataService:
         self._settings = settings
         self._lock = threading.Lock()
         self._lookup_attempted: set[int] = set()  # asset ids already probed this process
+        # Backfills tried this process: (ticker, start). History that starts after the first trade gets one
+        # attempt (older trades imported later); if Yahoo has nothing older, it isn't fetched every refresh.
+        self._backfilled: set[tuple[str, dt.date]] = set()
         self._again = False  # new holdings arrived during a refresh: run once more right after it
         self.last_refresh_at: dt.datetime | None = None
         self.last_error: str | None = None
@@ -348,15 +351,23 @@ class MarketDataService:
         except Exception as exc:  # noqa: BLE001 - logos are optional
             report.errors.append(f"logos: {exc}")
 
-    @staticmethod
-    def _asset_start(session: Session, asset: Asset, first_trade: dt.date) -> dt.date:
-        last_live = session.scalar(
-            select(func.max(AssetPrice.price_date)).where(
+    def _asset_start(self, session: Session, asset: Asset, first_trade: dt.date) -> dt.date:
+        first_live, last_live = session.execute(
+            select(func.min(AssetPrice.price_date), func.max(AssetPrice.price_date)).where(
                 AssetPrice.asset_id == asset.id, AssetPrice.source == PriceSource.YFINANCE
             )
-        )
-        if last_live is None:
-            return first_trade - dt.timedelta(days=7)  # full backfill replaces synthetic history
+        ).one()
+        return self._start(asset.yf_ticker or str(asset.id), first_trade, first_live, last_live)
+
+    def _start(self, key: str, first_trade: dt.date, first_live: dt.date | None, last_live: dt.date | None) -> dt.date:
+        """Where a download should begin: the whole history back to the first trade when none is stored yet or
+        what is stored starts after it (older trades imported later), else just the last few days."""
+        backfill = first_trade - dt.timedelta(days=7)
+        if last_live is None or first_live is None:
+            return backfill  # full backfill replaces synthetic history
+        if first_live > first_trade and (key, backfill) not in self._backfilled:
+            self._backfilled.add((key, backfill))
+            return backfill
         return last_live - dt.timedelta(days=5)
 
     # ---------------------------------------------------------------- fx
@@ -371,13 +382,13 @@ class MarketDataService:
         first_trade = session.scalar(select(func.min(Transaction.trade_date))) or dt.date.today()
         plans: dict[str, tuple[str, dt.date]] = {}
         for currency in sorted(currencies):
-            last_live = session.scalar(
-                select(func.max(FxRate.rate_date)).where(
+            first_live, last_live = session.execute(
+                select(func.min(FxRate.rate_date), func.max(FxRate.rate_date)).where(
                     FxRate.base == "USD", FxRate.quote == currency, FxRate.source == PriceSource.YFINANCE
                 )
-            )
-            start = first_trade - dt.timedelta(days=7) if last_live is None else last_live - dt.timedelta(days=5)
-            plans[f"{currency}=X"] = (currency, start)
+            ).one()
+            ticker = f"{currency}=X"
+            plans[ticker] = (currency, self._start(ticker, first_trade, first_live, last_live))
         for start, tickers in _group_by_start({t: s for t, (_, s) in plans.items()}).items():
             try:
                 closes = _download_closes(tickers, start)

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import get_settings
 from app.enums import ImportSource, PriceSource, TransactionType
-from app.models import Account, Asset, AssetPrice, AssetSplit, User
+from app.models import Account, Asset, AssetPrice, AssetSplit, FxRate, User
 from app.schemas.standard import StandardTransaction
 from app.services import market_data
 from app.services.ingestion import ingest_transactions
@@ -258,3 +258,38 @@ def test_refresh_fetches_the_whole_split_history_once(
     _refresh_assets(db, monkeypatch, {"SPLT": 50.0}, {"SPLT": {dt.date(2025, 3, 4): 3.0}})
     assert lookups == ["SPLT"]
     assert len(db.scalars(select(AssetSplit)).all()) == 3
+
+
+def test_history_is_backfilled_when_older_trades_arrive_later(
+    db: Session, user: User, account: Account, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """FX and prices first fetched in 2024; then a 2021 statement is imported: fetch back to it, once."""
+    ingest_transactions(
+        db,
+        user_id=user.id,
+        account_id=account.id,
+        transactions=[
+            StandardTransaction(
+                date=dt.date(2021, 3, 11), type=TransactionType.DEPOSIT, amount=Decimal(100), currency="USD"
+            )
+        ],
+        source=ImportSource.FILE,
+    )
+    for day in (dt.date(2024, 10, 8), dt.date(2026, 10, 20)):
+        db.add(FxRate(base="USD", quote="CHF", rate_date=day, rate=Decimal("0.85"), source=PriceSource.YFINANCE))
+    db.commit()
+    requests: list[tuple[tuple[str, ...], dt.date]] = []
+
+    def download(tickers: list[str], start: dt.date) -> dict[str, dict[dt.date, Any]]:
+        requests.append((tuple(tickers), start))
+        return {}
+
+    monkeypatch.setattr(market_data, "_download_closes", download)
+    service = market_data.MarketDataService(sessionmaker(), get_settings())
+    service._refresh_fx(db, market_data.RefreshReport())
+    assert any("CHF=X" in tickers and start == dt.date(2021, 3, 4) for tickers, start in requests)
+
+    # Yahoo had nothing older: the next refresh only fetches recent days, not the whole history again.
+    requests.clear()
+    service._refresh_fx(db, market_data.RefreshReport())
+    assert all(start >= dt.date(2026, 10, 1) for tickers, start in requests if "CHF=X" in tickers)
