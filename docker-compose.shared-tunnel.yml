@@ -1,0 +1,25 @@
+# Reach this instance from a Cloudflare Tunnel you already run elsewhere — its own container, on a shared
+# external Docker network — instead of this stack's own `tunnel` profile.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.shared-tunnel.yml up -d --build
+#
+# Nothing is published on the host at all: the connector reaches nginx over the shared network, so point
+# the Cloudflare route at http://jacklyn:8080.
+#
+# SHARED_NETWORK is the external network both stacks join (often "web"); it must already exist.
+
+services:
+  frontend:
+    # No host port: the LAN and the host itself see nothing, the tunnel reaches nginx internally.
+    ports: !reset []
+    networks:
+      app: {}
+      edge: {}
+      shared:
+        # A name of our own on a network other stacks share, where "frontend" would collide.
+        aliases: [jacklyn]
+
+networks:
+  shared:
+    name: ${SHARED_NETWORK:-web}
+    external: true

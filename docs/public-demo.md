@@ -43,15 +43,18 @@ is a new machine):
 cd ~/apps/jacklyn
 printf '%s\n' \
   'JACKLYN_DEMO_MODE=true' \
-  'JACKLYN_DEMO_SOURCE_URL=https://github.com/you/jacklyn' \
-  'JACKLYN_BIND=127.0.0.1' > .env
+  'JACKLYN_DEMO_SOURCE_URL=https://github.com/you/jacklyn' > .env
 docker compose up -d --build
 ```
 
-`JACKLYN_BIND=127.0.0.1` keeps the only listener on loopback; cloudflared reaches it from inside the
-machine, so nothing is open to your LAN either. Leave `JACKLYN_COOKIE_SECURE` at `auto`: Cloudflare
-terminates HTTPS and forwards the proof, so cookies are `Secure` for visitors without breaking a local
-`curl`.
+That publishes the UI on `127.0.0.1:8080` and nothing else, which is the default. Leave
+`JACKLYN_COOKIE_SECURE` at `auto`: Cloudflare terminates HTTPS and forwards the proof, so cookies are
+`Secure` for visitors without breaking a local `curl`.
+
+> `JACKLYN_BIND` is the **host** address the port is published on, not what the app listens on inside its
+> container — nginx always listens on `0.0.0.0:8080` in there. Setting it to `0.0.0.0` opens the app to
+> your LAN; it never makes a container-to-container connection work. See *Sharing a tunnel you already
+> run* below for that case.
 
 If this instance was already started once and printed a setup token, ignore it — the next restart claims
 the account for the demo. If someone already completed setup, demo mode signs visitors in as that admin
@@ -73,6 +76,30 @@ differences:
 - **No Cloudflare Access policy.** Access is what keeps a friends-only instance private; a demo that asks
   for an email code is a demo nobody opens.
 - **A hostname of its own**, e.g. `demo.example.com`, pointing at `http://localhost:8080`.
+
+### Sharing a tunnel you already run
+
+If the machine already runs a Cloudflare Tunnel as a container on a shared external Docker network, add a
+route to that tunnel instead of starting a second connector. The app then has to be reachable *from
+another container*, which a port published on the host's loopback is not, so drop the host port and join
+the shared network:
+
+```bash
+SHARED_NETWORK=web docker compose -f docker-compose.yml -f docker-compose.shared-tunnel.yml up -d --build
+```
+
+That override publishes no host port at all and gives nginx the alias `jacklyn` on the shared network, so
+the route's URL is `http://jacklyn:8080`. Check it from inside, since `localhost:8080` on the host is now
+deliberately dead:
+
+```bash
+docker compose exec frontend wget -qO- localhost:8080/api/auth/session
+```
+
+One side effect: nginx trusts `CF-Connecting-IP` only from this stack's own connector address, so with an
+outside tunnel the API sees every visitor as the connector's container IP. Request logs and the login
+throttle lump everyone together — harmless on a demo, worth knowing before reusing the arrangement for
+anything private.
 
 ## Keeping it presentable
 
