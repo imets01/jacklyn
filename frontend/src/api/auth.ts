@@ -16,6 +16,9 @@ export interface SessionStatus {
   authenticated: boolean
   needs_setup: boolean
   user: Me | null
+  /** A public demo: made-up data, and anyone may sign in with one click. */
+  demo: boolean
+  demo_source_url: string | null
 }
 
 export interface LinkInfo {
@@ -100,6 +103,12 @@ export function useLogin() {
     mutationFn: (body: { email: string; password: string; totp_code?: string | null }) => api.post<Me>('/api/auth/login', body),
     onSuccess: reset,
   })
+}
+
+/** Public demos only: a session for the demo account, no credentials. 404s on a private instance. */
+export function useDemoLogin() {
+  const reset = useResetAfterAuthChange()
+  return useMutation({ mutationFn: () => api.post<Me>('/api/auth/demo'), onSuccess: reset })
 }
 
 export function useLogout() {

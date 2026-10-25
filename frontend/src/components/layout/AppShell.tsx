@@ -7,6 +7,7 @@ import { useLogout, useSession } from '../../api/auth'
 
 import { usePreferences, type ThemePreference } from '../../lib/preferences-context'
 import { Logo, LogoMark } from '../ui/Logo'
+import { DemoBanner } from './DemoBanner'
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
@@ -161,6 +162,7 @@ export function AppShell() {
 
       <main className="pb-24 lg:pb-12 lg:pl-60">
         <div className="mx-auto w-full max-w-[1240px] px-4 pt-6 sm:px-6 lg:px-10 lg:pt-10">
+          <DemoBanner />
           <Outlet />
         </div>
       </main>

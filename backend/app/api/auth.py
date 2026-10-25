@@ -62,12 +62,26 @@ def _email_taken(db: DbSession, email: str, except_user_id: int | None = None) -
 
 @router.get("/session", response_model=SessionStatus)
 def session_status(request: Request, db: DbSession) -> SessionStatus:
+    settings = get_settings()
     resolved = auth_service.resolve_session(db, request.cookies.get(SESSION_COOKIE))
     return SessionStatus(
         authenticated=resolved is not None,
         needs_setup=auth_service.needs_setup(db),
         user=MeOut.model_validate(resolved[1]) if resolved else None,
+        demo=settings.demo_mode,
+        demo_source_url=settings.demo_source_url if settings.demo_mode else None,
     )
+
+
+@router.post("/demo", response_model=MeOut)
+def demo_login(request: Request, response: Response, db: DbSession) -> MeOut:
+    """Sign in to a public demo with no credentials. Only exists while `JACKLYN_DEMO_MODE` is on."""
+    if not get_settings().demo_mode:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found.")
+    user = auth_service.demo_user(db)
+    if user is None:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "This demo has no account to sign in to.")
+    return _start_session(db, request, response, user)
 
 
 @router.post("/login", response_model=MeOut)

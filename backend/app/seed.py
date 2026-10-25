@@ -22,6 +22,8 @@ from app.config import Settings
 from app.enums import AccountType, AssetClass, ImportSource, PriceSource, TransactionType
 from app.models import Account, Asset, AssetPrice, FxRate, User
 from app.schemas.standard import StandardTransaction
+from app.security import passwords
+from app.security.secrets import new_token
 from app.services.ingestion import ingest_transactions
 
 logger = logging.getLogger(__name__)
@@ -499,8 +501,24 @@ class DemoPortfolio:
         return tx
 
 
+def open_for_demo(session: Session) -> None:
+    """A public demo has nobody to claim it, so claim it here with a password nobody will ever hold.
+
+    Sessions only resolve for an account that has one, and first-run setup only waits while no admin does.
+    Visitors come in through `/api/auth/demo` instead, which needs no credentials.
+    """
+    owner = session.scalar(select(User).where(User.is_admin.is_(True), User.password_hash.is_(None)).order_by(User.id))
+    if owner is None:
+        return
+    owner.password_hash = passwords.hash_password(new_token())
+    session.commit()
+    logger.warning("Demo mode: %s is open to anyone who opens the app. Keep real data off this instance.", owner.email)
+
+
 def seed(session: Session, settings: Settings) -> None:
     user = ensure_owner(session, settings)
+    if settings.demo_mode:
+        open_for_demo(session)
     if user is None or not settings.seed_demo_data:
         return
     if session.scalar(select(Account.id).where(Account.user_id == user.id).limit(1)) is not None:

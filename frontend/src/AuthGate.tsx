@@ -13,6 +13,7 @@ import { PreferencesProvider } from './lib/preferences'
 import { greetedThisSession } from './lib/welcome'
 import { AccountDetailPage } from './pages/AccountDetailPage'
 import { AccountsPage } from './pages/AccountsPage'
+import { DemoPage } from './pages/auth/DemoPage'
 import { InvitePage, ResetPage } from './pages/auth/LinkPages'
 import { LoginPage } from './pages/auth/LoginPage'
 import { SetupPage } from './pages/auth/SetupPage'
@@ -84,10 +85,12 @@ export function AuthGate() {
   )
 
   if (!session.data.authenticated) {
+    // A public demo asks for nothing: one button signs the visitor in to the seeded portfolio.
+    const SignIn = session.data.demo ? DemoPage : LoginPage
     return (
       <Routes>
         {linkRoutes}
-        <Route path="*" element={<LoginPage />} />
+        <Route path="*" element={<SignIn />} />
       </Routes>
     )
   }

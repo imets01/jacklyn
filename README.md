@@ -52,6 +52,9 @@ Jacklyn is built to be shared with a few trusted people without exposing your se
   filesystems and no capabilities, and the UI is published on `127.0.0.1` only by default.
 - **Sharing with friends:** see [docs/cloudflare-tunnel.md](docs/cloudflare-tunnel.md). It covers a shareable
   link with no open ports, behind Cloudflare Access plus Jacklyn's own login.
+- **A demo anyone can open:** `JACKLYN_DEMO_MODE=true` replaces the sign-in wall with one button into the
+  seeded portfolio and says on every page that the data is invented. For a throwaway instance only, never
+  one with real data in it: see [docs/public-demo.md](docs/public-demo.md).
 - **Backups**: Settings → Backups downloads a consistent copy of the SQLite database and restores one (a safety
   copy of the current data is taken first). A daily copy is kept in `data/backups` (last 14). The backup holds no
   `secret.key`: keep that key too if you might restore on a new server. PostgreSQL deployments use `pg_dump`.

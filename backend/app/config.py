@@ -26,6 +26,11 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("JACKLYN_DATABASE_URL", "DATABASE_URL"),
     )
     seed_demo_data: bool = True
+    # A public demo anyone may open: the sign-in page offers one click into the seeded portfolio instead of
+    # asking for credentials. Only ever turn this on for an instance that holds no real data.
+    demo_mode: bool = False
+    # Shown on the demo's sign-in page and banner, if the code is public.
+    demo_source_url: str | None = None
     default_user_email: str = "owner@jacklyn.local"
     default_user_name: str = "Jacklyn Owner"
     default_base_currency: str = "CHF"

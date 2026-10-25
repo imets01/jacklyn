@@ -38,7 +38,13 @@ def strict_throttle() -> Iterator[LoginThrottle]:
 
 
 def test_first_run_setup_is_guarded(bootstrap: dict[str, Any]) -> None:
-    assert bootstrap["status_before"] == {"authenticated": False, "needs_setup": True, "user": None}
+    assert bootstrap["status_before"] == {
+        "authenticated": False,
+        "needs_setup": True,
+        "user": None,
+        "demo": False,
+        "demo_source_url": None,
+    }
     assert bootstrap["data_before"] == 401  # nothing is readable before an admin exists
     assert bootstrap["no_csrf_header"] == 403
     assert bootstrap["wrong_token"] == 403

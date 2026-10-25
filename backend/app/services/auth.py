@@ -68,6 +68,16 @@ def resolve_session(db: Session, token: str | None) -> tuple[UserSession, User] 
     return user_session, user
 
 
+def demo_user(db: Session) -> User | None:
+    """Who the demo sign-in signs visitors in as: the instance's first usable admin."""
+    return db.scalar(
+        select(User)
+        .where(User.is_admin.is_(True), User.is_active.is_(True), User.password_hash.is_not(None))
+        .order_by(User.id)
+        .limit(1)
+    )
+
+
 def revoke_sessions(db: Session, user_id: int, *, keep_session_id: int | None = None) -> int:
     query = delete(UserSession).where(UserSession.user_id == user_id)
     if keep_session_id is not None:

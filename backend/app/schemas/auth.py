@@ -28,6 +28,9 @@ class SessionStatus(BaseModel):
     authenticated: bool
     needs_setup: bool
     user: MeOut | None = None
+    # A public demo: the sign-in page offers a one-click way in, and the app says the data is made up.
+    demo: bool = False
+    demo_source_url: str | None = None
 
 
 class LoginIn(BaseModel):
