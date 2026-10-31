@@ -1,5 +1,5 @@
 import { clsx } from 'clsx'
-import { FileUp, Plus, Search, X } from 'lucide-react'
+import { ChevronDown, FileUp, Plus, Search, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 
@@ -12,6 +12,7 @@ import { Modal } from '../components/ui/Modal'
 import { Button, Card, EmptyState, Field, Input, Notice, Select, Spinner } from '../components/ui/primitives'
 import { useDebounced } from '../lib/debounce'
 import { formatDate, TRANSACTION_TYPE_LABELS } from '../lib/format'
+import { useIsCompact } from '../lib/media'
 import { usePreferences } from '../lib/preferences-context'
 import { QueryError } from './QueryError'
 
@@ -40,6 +41,8 @@ export function TransactionsPage() {
   const [form, setForm] = useState<TransactionRow | boolean>(false)
   const [deleting, setDeleting] = useState<TransactionRow | null>(null)
   const debouncedSearch = useDebounced(searchText.trim(), 300)
+  const compact = useIsCompact()
+  const [filtersOpen, setFiltersOpen] = useState(false)
 
   const accountId = numberParam(params.get('account'))
   const assetId = numberParam(params.get('asset'))
@@ -89,7 +92,10 @@ export function TransactionsPage() {
     dateTo,
   }
   const transactions = useTransactions(filters, page, PAGE_SIZE)
-  const filtered = Boolean(accountId || assetId || groups.length || params.get('q') || dateFrom || dateTo)
+  // On a phone the account comes from the tab bar: it's the page's scope, not a filter to clear.
+  const filtered = Boolean((!compact && accountId) || assetId || groups.length || params.get('q') || dateFrom || dateTo)
+  const collapsed = compact && !filtersOpen
+  const hiddenFilterCount = groups.length + (assetId ? 1 : 0) + (dateFrom ? 1 : 0) + (dateTo ? 1 : 0)
   const data = transactions.data
   const assetLabel = assetId ? (data?.items.find((tx) => tx.symbol)?.symbol ?? 'one asset') : null
 
@@ -98,7 +104,7 @@ export function TransactionsPage() {
 
   const clearAll = () => {
     setSearchText('')
-    setParams({}, { replace: true })
+    setParams(compact && accountId ? { account: String(accountId) } : {}, { replace: true })
   }
 
   return (
@@ -136,17 +142,33 @@ export function TransactionsPage() {
                 />
               </span>
             </Field>
-            <Field label="Account">
-              <Select value={accountId ?? ''} onChange={(event) => update({ account: event.target.value || null })}>
-                <option value="">All accounts</option>
-                {(accounts.data ?? []).map((account) => (
-                  <option key={account.id} value={account.id}>
-                    {account.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-            <div className="grid grid-cols-2 gap-3 sm:col-span-2 lg:col-span-1">
+            {compact ? (
+              <button
+                type="button"
+                aria-expanded={filtersOpen}
+                onClick={() => setFiltersOpen(!filtersOpen)}
+                className="flex h-9 items-center justify-between rounded-xl px-1 text-sm font-medium text-ink-2"
+              >
+                <span>
+                  Filters
+                  {hiddenFilterCount ? <span className="ml-2 rounded-full bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent">{hiddenFilterCount}</span> : null}
+                </span>
+                <ChevronDown className={clsx('size-4 text-ink-3 transition-transform', filtersOpen && 'rotate-180')} aria-hidden />
+              </button>
+            ) : null}
+            <div className={clsx(collapsed && 'hidden')}>
+              <Field label="Account">
+                <Select value={accountId ?? ''} onChange={(event) => update({ account: event.target.value || null })}>
+                  <option value="">All accounts</option>
+                  {(accounts.data ?? []).map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.name}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+            <div className={clsx('grid grid-cols-2 gap-3 sm:col-span-2 lg:col-span-1', collapsed && 'hidden')}>
             <Field label="From">
               <Input type="date" value={dateFrom} max={dateTo || undefined} onChange={(event) => update({ from: event.target.value || null })} />
             </Field>
@@ -155,7 +177,7 @@ export function TransactionsPage() {
             </Field>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Transaction types">
+          <div className={clsx('flex flex-wrap items-center gap-2', collapsed && 'hidden')} role="group" aria-label="Transaction types">
             {TYPE_GROUPS.map((group) => {
               const active = groups.includes(group.key)
               return (

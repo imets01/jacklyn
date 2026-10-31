@@ -1,10 +1,12 @@
 import { clsx } from 'clsx'
-import { ChevronLeft, ChevronRight, Pencil, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, Pencil, Trash2 } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
 
 import type { TransactionPage, TransactionRow } from '../../api/types'
 import { formatDate, formatMoney, formatPrice, formatQuantity, TRANSACTION_TYPE_LABELS } from '../../lib/format'
-import { Badge, type BadgeTone } from '../ui/primitives'
+import { useIsCompact } from '../../lib/media'
+import { Badge, Button, type BadgeTone } from '../ui/primitives'
 import { Sensitive } from '../ui/Sensitive'
 
 function typeTone(type: TransactionRow['type']): BadgeTone {
@@ -16,6 +18,93 @@ function typeTone(type: TransactionRow['type']): BadgeTone {
 
 const rowAction =
   'grid size-8 place-items-center rounded-full text-ink-3 transition-opacity hover:bg-surface-2 hover:text-ink focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100'
+
+/** The phone version of the table: one line per transaction, tap for the rest and the actions. */
+function TransactionList({
+  items,
+  showAccount,
+  onEdit,
+  onDelete,
+}: {
+  items: TransactionRow[]
+  showAccount: boolean
+  onEdit?: (transaction: TransactionRow) => void
+  onDelete?: (transaction: TransactionRow) => void
+}) {
+  const [expanded, setExpanded] = useState<number | null>(null)
+  return (
+    <ul className="tabular">
+      {items.map((tx) => {
+        const open = expanded === tx.id
+        const name = tx.symbol ? (tx.name ?? tx.description) : null
+        return (
+          <li key={tx.id} className="border-t border-line first:border-t-0">
+            <button
+              type="button"
+              aria-expanded={open}
+              onClick={() => setExpanded(open ? null : tx.id)}
+              className="flex w-full items-center gap-3 px-5 py-3 text-left transition-colors active:bg-surface-2"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium text-ink">{tx.symbol ?? tx.description ?? '—'}</span>
+                <span className="mt-1 flex items-center gap-2 text-xs text-ink-3">
+                  <Badge tone={typeTone(tx.type)}>{TRANSACTION_TYPE_LABELS[tx.type]}</Badge>
+                  <span className="whitespace-nowrap">{formatDate(tx.date)}</span>
+                </span>
+              </span>
+              <span className="shrink-0 text-right text-sm font-medium text-ink">
+                <Sensitive>{tx.amount ? formatMoney(tx.amount, tx.currency) : '—'}</Sensitive>
+              </span>
+              <ChevronDown className={clsx('size-4 shrink-0 text-ink-3 transition-transform', open && 'rotate-180')} aria-hidden />
+            </button>
+            {open ? (
+              <div className="px-5 pb-4">
+                <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 rounded-2xl bg-surface-2 px-4 py-3 text-[13px]">
+                  {name ? <DetailRow label="Name">{name}</DetailRow> : null}
+                  {showAccount ? (
+                    <DetailRow label="Account">
+                      <Link to={`/accounts/${tx.account_id}`} className="font-medium text-accent">
+                        {tx.account_name}
+                      </Link>
+                    </DetailRow>
+                  ) : null}
+                  {Number(tx.quantity) ? <DetailRow label="Quantity"><Sensitive>{formatQuantity(tx.quantity)}</Sensitive></DetailRow> : null}
+                  {tx.unit_price ? <DetailRow label="Price">{formatPrice(tx.unit_price, tx.currency)}</DetailRow> : null}
+                  {Number(tx.fee) ? <DetailRow label="Fee"><Sensitive>{formatMoney(tx.fee, tx.currency)}</Sensitive></DetailRow> : null}
+                  {Number(tx.tax) ? <DetailRow label="Tax"><Sensitive>{formatMoney(tx.tax, tx.currency)}</Sensitive></DetailRow> : null}
+                  {tx.manual ? <DetailRow label="Source">Entered by hand</DetailRow> : null}
+                </dl>
+                {onEdit || onDelete ? (
+                  <div className="mt-3 flex justify-end gap-2">
+                    {onDelete ? (
+                      <Button size="sm" variant="ghost" onClick={() => onDelete(tx)}>
+                        <Trash2 className="size-3.5" aria-hidden /> Delete
+                      </Button>
+                    ) : null}
+                    {onEdit ? (
+                      <Button size="sm" onClick={() => onEdit(tx)}>
+                        <Pencil className="size-3.5" aria-hidden /> Edit
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
+function DetailRow({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <>
+      <dt className="text-ink-3">{label}</dt>
+      <dd className="min-w-0 truncate text-right text-ink">{children}</dd>
+    </>
+  )
+}
 
 /** One page of ledger rows plus pager. `showAccount` adds the account column for cross-account lists. */
 export function TransactionsTable({
@@ -39,9 +128,13 @@ export function TransactionsTable({
 }) {
   const actions = Boolean(onEdit || onDelete)
   const pages = Math.ceil(data.total / pageSize)
+  const compact = useIsCompact()
   return (
     <>
       <div className={clsx('overflow-x-auto transition-opacity', loadingMore && 'opacity-60')}>
+        {compact ? (
+          <TransactionList items={data.items} showAccount={showAccount} onEdit={onEdit} onDelete={onDelete} />
+        ) : (
         <table className={clsx('w-full text-sm', showAccount ? 'min-w-[940px]' : 'min-w-[820px]')}>
           <thead className="text-left text-xs text-ink-3">
             <tr>
@@ -114,6 +207,7 @@ export function TransactionsTable({
             ))}
           </tbody>
         </table>
+        )}
       </div>
       {pages > 1 ? (
         <div className="flex items-center justify-between border-t border-line px-6 py-3 text-sm text-ink-3">

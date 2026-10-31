@@ -22,6 +22,7 @@ import {
   formatPrice,
   formatQuantity,
 } from '../lib/format'
+import { useIsCompact } from '../lib/media'
 import { usePreferences } from '../lib/preferences-context'
 import { QueryError } from './QueryError'
 import { Sensitive } from '../components/ui/Sensitive'
@@ -29,10 +30,40 @@ import { Sensitive } from '../components/ui/Sensitive'
 function HoldingsTable({ accountId, currency }: { accountId: number; currency: string }) {
   const holdings = useHoldings(currency, accountId)
   const navigate = useNavigate()
+  const compact = useIsCompact()
   if (holdings.isLoading) return <Spinner className="m-6" />
   const data = holdings.data
   if (!data || data.holdings.length === 0) {
     return <p className="px-6 py-8 text-sm text-ink-3">No open positions.</p>
+  }
+  if (compact) {
+    return (
+      <ul className="tabular pb-1">
+        {data.holdings.map((holding) => (
+          <li key={holding.asset_id} className="border-t border-line">
+            <Link to={`/holdings/${holding.asset_id}`} className="flex items-center gap-3 px-5 py-3 transition-colors active:bg-surface-2">
+              <AssetIcon
+                symbol={holding.symbol}
+                name={holding.name}
+                assetClass={holding.asset_class}
+                logoUrl={holding.logo_url}
+                size="sm"
+              />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold text-ink">{holding.symbol}</span>
+                <span className="block truncate text-xs text-ink-3">
+                  {holding.name ?? holding.isin ?? ASSET_CLASS_LABELS[holding.asset_class]}
+                </span>
+              </span>
+              <span className="shrink-0 text-right">
+                <span className="block text-sm font-semibold text-ink"><Sensitive>{formatMoney(holding.value, currency)}</Sensitive></span>
+                <Delta amount={holding.unrealized_pnl} currency={currency} className="justify-end text-xs" />
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    )
   }
   return (
     <div className="overflow-x-auto">
@@ -119,7 +150,8 @@ export function AccountDetailPage() {
 
   return (
     <>
-      <Link to="/accounts" className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-ink-3 hover:text-ink">
+      {/* Below lg the tab bar already goes to the overview and to this account's transactions. */}
+      <Link to="/accounts" className="mb-4 hidden items-center gap-1.5 text-sm font-medium text-ink-3 hover:text-ink lg:inline-flex">
         <ArrowLeft className="size-4" aria-hidden /> All accounts
       </Link>
       <PageHeader
@@ -192,7 +224,7 @@ export function AccountDetailPage() {
         </Card>
         <Link
           to={`/transactions?account=${id}`}
-          className="group flex items-center gap-4 rounded-3xl border border-line bg-surface px-6 py-4 shadow-[var(--shadow-card)] transition-colors hover:bg-surface-2"
+          className="group hidden items-center gap-4 rounded-3xl border border-line bg-surface px-6 py-4 lg:flex shadow-[var(--shadow-card)] transition-colors hover:bg-surface-2"
         >
           <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-accent-soft text-accent">
             <ReceiptText className="size-5" aria-hidden />

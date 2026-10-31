@@ -136,7 +136,8 @@ export function Field({ label, hint, children }: { label: string; hint?: ReactNo
 }
 
 const controlClass =
-  'h-10 w-full rounded-xl border border-line bg-surface px-3 text-sm text-ink outline-none transition-colors placeholder:text-ink-3 focus:border-accent focus:ring-2 focus:ring-accent/20'
+  // 16px on phones: iOS zooms the whole page when focusing anything smaller.
+  'h-10 w-full rounded-xl border border-line bg-surface px-3 text-base text-ink outline-none md:text-sm transition-colors placeholder:text-ink-3 focus:border-accent focus:ring-2 focus:ring-accent/20'
 
 export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return <input className={clsx(controlClass, className)} {...props} />

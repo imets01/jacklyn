@@ -68,7 +68,7 @@ export function TbszProgress({ account, compact = false }: { account: AccountSum
         ) : null}
       </div>
       <p className="flex items-center gap-1 text-xs text-ink-3">
-        {matured ? <LockOpen className="size-3" aria-hidden /> : <Lock className="size-3" aria-hidden />}
+        {matured ? <LockOpen className="size-3 shrink-0" aria-hidden /> : <Lock className="size-3 shrink-0" aria-hidden />}
         {matured ? 'Tax-free — lock-up complete' : `Tax-free from ${formatMonthYear(account.tbsz_tax_free_from)}`}
         {!matured && compact ? ` · ${timeLeft(now, account.tbsz_tax_free_from, true)} left` : ''}
         {!matured && account.tbsz_reduced_rate_from && !compact
@@ -87,27 +87,35 @@ export function AccountRow({ account, currency }: { account: AccountSummary; cur
   return (
     <Link
       to={`/accounts/${account.id}`}
-      className="group flex items-center gap-4 rounded-2xl px-3 py-3 transition-colors hover:bg-surface-2"
+      className="group grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 rounded-2xl px-3 py-3 transition-colors hover:bg-surface-2 active:bg-surface-2 sm:grid-cols-[auto_minmax(0,1fr)_auto_auto] sm:gap-x-4"
     >
-      <BrokerAvatar broker={account.broker} />
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="truncate text-sm font-semibold text-ink">{account.name}</span>
+      <BrokerAvatar broker={account.broker} className="sm:row-span-2" />
+      <div className="min-w-0">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="min-w-0 truncate text-sm font-semibold text-ink">{account.name}</span>
           <AccountTypeBadge account={account} />
         </div>
         <p className="mt-0.5 truncate text-xs text-ink-3">
-          {account.broker} · {account.holdings_count} holdings
-          <Sensitive>{account.currency !== currency && account.value_account_currency
-            ? ` · ${formatMoney(account.value_account_currency, account.currency)}`
-            : ''}</Sensitive>
+          {/* On a phone the section heading above already names the broker, and the width is needed. */}
+          <span className="hidden sm:inline">{account.broker} · </span>
+          {account.holdings_count} holding{account.holdings_count === 1 ? '' : 's'}
+          {/* Cut off mid-number on a phone; the account's own page shows it. */}
+          <span className="hidden sm:inline">
+            <Sensitive>{account.currency !== currency && account.value_account_currency
+              ? ` · ${formatMoney(account.value_account_currency, account.currency)}`
+              : ''}</Sensitive>
+          </span>
         </p>
-        <TbszProgress account={account} compact />
       </div>
-      <div className="text-right">
-        <p className="tabular text-sm font-semibold text-ink"><Sensitive>{formatMoney(account.value, currency)}</Sensitive></p>
+      <div className="text-right sm:row-span-2">
+        <p className="tabular whitespace-nowrap text-sm font-semibold text-ink"><Sensitive>{formatMoney(account.value, currency)}</Sensitive></p>
         <Delta amount={account.total_pnl} currency={currency} className="text-xs" />
       </div>
-      <ChevronRight className="size-4 shrink-0 text-ink-3 transition-transform group-hover:translate-x-0.5" aria-hidden />
+      <ChevronRight className="hidden size-4 shrink-0 text-ink-3 transition-transform group-hover:translate-x-0.5 sm:row-span-2 sm:block" aria-hidden />
+      {/* Full width on a phone, so the lock-up line stays on one line instead of wrapping in the narrow text column. */}
+      <div className="col-span-full min-w-0 sm:col-span-1 sm:col-start-2">
+        <TbszProgress account={account} compact />
+      </div>
     </Link>
   )
 }

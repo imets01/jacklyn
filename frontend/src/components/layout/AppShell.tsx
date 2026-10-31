@@ -1,77 +1,25 @@
 import { clsx } from 'clsx'
-import { Coins, Eye, EyeOff, FileUp, HeartPulse, LayoutDashboard, LogOut, Monitor, Moon, ReceiptText, Settings, Sun, Wallet } from 'lucide-react'
+import { Coins, FileUp, HeartPulse, LayoutDashboard, LogOut, ReceiptText, Wallet } from 'lucide-react'
 import { useEffect } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router'
 
 import { useLogout, useSession } from '../../api/auth'
 
-import { usePreferences, type ThemePreference } from '../../lib/preferences-context'
-import { Logo, LogoMark } from '../ui/Logo'
+import { useIsDesktop } from '../../lib/media'
+import { Logo } from '../ui/Logo'
+import { PrivacyToggle, ThemeSwitch } from './Controls'
 import { DemoBanner } from './DemoBanner'
+import { MobileSidebar, MobileTabs, MobileTopBar } from './MobileNav'
+import { useMobileMenu } from './useMobileMenu'
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
   { to: '/accounts', label: 'Accounts', icon: Wallet, end: false },
-  // The phone tab bar has a seventh of the width per item: too narrow for "Transactions".
-  { to: '/transactions', label: 'Transactions', short: 'Activity', icon: ReceiptText, end: false },
+  { to: '/transactions', label: 'Transactions', icon: ReceiptText, end: false },
   { to: '/income', label: 'Income', icon: Coins, end: false },
   { to: '/health', label: 'Health', icon: HeartPulse, end: false },
   { to: '/import', label: 'Import', icon: FileUp, end: false },
 ] as const
-
-const THEMES: { value: ThemePreference; label: string; icon: typeof Sun }[] = [
-  { value: 'light', label: 'Light', icon: Sun },
-  { value: 'system', label: 'System', icon: Monitor },
-  { value: 'dark', label: 'Dark', icon: Moon },
-]
-
-function ThemeSwitch({ compact = false }: { compact?: boolean }) {
-  const { theme, setTheme } = usePreferences()
-  return (
-    <div role="radiogroup" aria-label="Theme" className="inline-flex rounded-full bg-surface-2 p-1">
-      {THEMES.map(({ value, label, icon: Icon }) => (
-        <button
-          key={value}
-          type="button"
-          role="radio"
-          aria-checked={theme === value}
-          title={`${label} theme`}
-          onClick={() => setTheme(value)}
-          className={clsx(
-            'grid place-items-center rounded-full transition-all',
-            compact ? 'size-7' : 'h-7 flex-1 px-3',
-            theme === value ? 'bg-surface text-ink shadow-[var(--shadow-card)]' : 'text-ink-3 hover:text-ink',
-          )}
-        >
-          <Icon className="size-3.5" aria-hidden />
-          <span className="sr-only">{label}</span>
-        </button>
-      ))}
-    </div>
-  )
-}
-
-/** Private mode: masks money amounts and quantities, e.g. for screenshots or showing the app to someone. */
-function PrivacyToggle() {
-  const { hideAmounts, setHideAmounts } = usePreferences()
-  const Icon = hideAmounts ? EyeOff : Eye
-  const label = hideAmounts ? 'Show amounts' : 'Hide amounts'
-  return (
-    <button
-      type="button"
-      aria-pressed={hideAmounts}
-      title={label}
-      onClick={() => setHideAmounts(!hideAmounts)}
-      className={clsx(
-        'grid size-9 shrink-0 place-items-center rounded-full transition-colors',
-        hideAmounts ? 'bg-accent-soft text-accent' : 'bg-surface-2 text-ink-3 hover:text-ink',
-      )}
-    >
-      <Icon className="size-4" aria-hidden />
-      <span className="sr-only">{label}</span>
-    </button>
-  )
-}
 
 function UserCard() {
   const session = useSession()
@@ -112,8 +60,12 @@ function useScrollTopOnNavigate() {
 
 export function AppShell() {
   useScrollTopOnNavigate()
+  const desktop = useIsDesktop()
+  const menu = useMobileMenu(desktop)
   return (
-    <div className="min-h-dvh bg-canvas">
+    <>
+    {desktop ? null : <MobileSidebar menu={menu} />}
+    <div inert={menu.menuOpen} style={menu.screenStyle} className={clsx('relative z-10 min-h-dvh bg-canvas', menu.screenClass)}>
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-20 hidden w-60 flex-col border-r border-line bg-surface/60 px-4 py-6 backdrop-blur lg:flex">
         <div className="px-2">
@@ -148,51 +100,17 @@ export function AppShell() {
         </div>
       </aside>
 
-      {/* Mobile top bar */}
-      <header className="sticky top-0 z-20 flex items-center justify-between border-b border-line bg-canvas/85 px-4 py-3 backdrop-blur lg:hidden">
-        <div className="flex items-center gap-2">
-          <LogoMark className="size-7" />
-          <span className="font-display font-bold">Jacklyn</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <PrivacyToggle />
-          <ThemeSwitch compact />
-        </div>
-      </header>
+      {desktop ? null : <MobileTopBar menu={menu} />}
 
-      <main className="pb-24 lg:pb-12 lg:pl-60">
+      <main style={menu.mainStyle} className="pb-[calc(8rem+env(safe-area-inset-bottom))] lg:pb-12 lg:pl-60">
         <div className="mx-auto w-full max-w-[1240px] px-4 pt-6 sm:px-6 lg:px-10 lg:pt-10">
           <DemoBanner />
           <Outlet />
         </div>
       </main>
 
-      {/* Mobile tab bar */}
-      <nav
-        aria-label="Main"
-        className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-7 border-t border-line bg-surface/95 px-2 pb-[max(env(safe-area-inset-bottom),0.5rem)] pt-2 backdrop-blur lg:hidden"
-      >
-        {[...NAV, { to: '/settings', label: 'Settings', icon: Settings, end: false }].map((item) => {
-          const { to, label, icon: Icon, end } = item
-          return (
-            <NavLink
-              key={to}
-              to={to}
-              end={end}
-              aria-label={label}
-              className={({ isActive }) =>
-                clsx(
-                  'flex min-w-0 flex-col items-center gap-1 rounded-xl py-1.5 text-[10px] font-medium',
-                  isActive ? 'text-accent' : 'text-ink-3',
-                )
-              }
-            >
-              <Icon className="size-5" aria-hidden />
-              <span className="max-w-full truncate">{'short' in item ? item.short : label}</span>
-            </NavLink>
-          )
-        })}
-      </nav>
+      {desktop ? null : <MobileTabs />}
     </div>
+    </>
   )
 }
